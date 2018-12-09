@@ -1,6 +1,6 @@
 echo "---OS START LAUNCH---"
 
-if grub-file --is-x86-multiboot ../myos.bin; then
+if grub-file --is-x86-multiboot ../Others/Anix.bin; then
   echo "
 	---------------------
 	|		            |
@@ -17,13 +17,13 @@ echo "---WRITE GRUB---"
 echo '
 menuentry "Anix" {
 	multiboot /boot/Anix.bin
-}' >> ../grub.cfg
+}' >> ../Others/grub.cfg
 
 echo "---CREATE ISODIR---"
 
 mkdir -p ../root/boot/grub
-cp ../Anix.bin ../root/boot/Anix.bin
-cp ../grub.cfg ../root/boot/grub/grub.cfg
+cp ../Others/Anix.bin ../root/boot/Anix.bin
+cp ../Others/grub.cfg ../root/boot/grub/grub.cfg
 grub-mkrescue -o ../Anix.iso ../root
 
 echo "---OS LAUNCH IN QEMU ---"
@@ -33,9 +33,11 @@ qemu-system-i386 -cdrom ../Anix.iso
 echo "SYSTEM LAUNCH SUCCESSFULLY !"
 
 echo "
-	-     |-    | ||  -   -
-      |	 |    | -   |       -
-     |	  |   |  -  | ||   - -
-    |------|  |   - | ||  -   -
-   |        | |    -| || -     -
+  ------------------------------
+  |     -    |-    | ||  -   - |
+  |    | |   | -   |       -   |
+  |   |	  |  |  -  | ||   - -  |
+  |  |-----| |   - | ||  -   - |
+  | |       ||    -| || -     -|
+  ------------------------------
 "

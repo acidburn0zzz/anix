@@ -1,5 +1,4 @@
 rm -rf ../root
-rm -f ../*.o
-rm -f ../grub.cfg
-rm -f ../*.bin
-rm -f ../*.iso
+rm -f ../O/*.o
+rm -f ../Others/*
+rm -f ../Anix.iso
