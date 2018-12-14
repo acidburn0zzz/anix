@@ -1,3 +1,18 @@
+#Copyright (C) 2018 Nicolas Fouquet
+
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License, or
+#(at your option) any later version.
+
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#GNU General Public License for more details.
+
+#You should have received a copy of the GNU General Public License
+#along with this program.  If not, see https://www.gnu.org/licenses.
+
 /* Declare constants for the multiboot header. */
 .set ALIGN,    1<<0             /* align loaded modules on page boundaries */
 .set MEMINFO,  1<<1             /* provide memory map */
@@ -45,6 +60,7 @@ doesn't make sense to return from this function as the bootloader is gone.
 .global _start
 .type _start, @function
 _start:
+    cli
 	/*
 	The bootloader has loaded us into 32-bit protected mode on a x86
 	machine. Interrupts are disabled. Paging is disabled. The processor
@@ -85,7 +101,6 @@ _start:
 	preserved and the call is well defined.
 	*/
 	call kernel_main
- 
 	/*
 	If the system has nothing more to do, put the computer into an
 	infinite loop. To do that:
@@ -98,10 +113,8 @@ _start:
 	3) Jump to the hlt instruction if it ever wakes up due to a
 	   non-maskable interrupt occurring or due to system management mode.
 	*/
-	cli
 1:	hlt
 	jmp 1b
- 
 /*
 Set the size of the _start symbol to the current location '.' minus its start.
 This is useful when debugging or when you implement call tracing.
