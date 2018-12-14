@@ -13,7 +13,9 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see https://www.gnu.org/licenses.
 
-rm -rf ../root
-rm -f ../O/*.o
-rm -f ../Others/*
-rm -f ../Anix.iso
+echo "--------------------------CLEAN(clean.sh)--------------------------"
+sh clean.sh
+echo "--------------------------BUILD(build.sh)--------------------------"
+sh build.sh
+echo "--------------------------LAUNCH(launch.sh)--------------------------"
+sh launch.sh
