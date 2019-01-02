@@ -12,6 +12,7 @@ uart_16550 = "0.1.0"
 x86_64 = "0.2.8"
 pic8259_simple = "0.1.1"
 pc-keyboard = "0.3.1"
+libc = {git ="https://github.com/rust-lang/libc", version = "0.2", default-features = false, features = ['rustc-dep-of-std'] }
 
 [dependencies.lazy_static]
 version = "1.0"
@@ -30,3 +31,8 @@ panic = "abort" # disable stack unwinding on panic
 
 [package.metadata.bootimage]
 default-target = "x86_64-Anix.json"
+
+[lib]
+name = "std"
+crate-type = [ "staticlib" ]
+path = "src/lib/libstd/lib.rs"
