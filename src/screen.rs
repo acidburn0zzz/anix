@@ -1,8 +1,38 @@
+/*Copyright (C) 2018-2019 Nicolas Fouquet
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses.
+*/
+use core::fmt;
+use spin::Mutex;
+use volatile::Volatile;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    /// A global `Writer` instance that can be used for printing to the VGA text buffer.
+    ///
+    /// Used by the `print!` and `println!` macros.
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+        column_position: 0,
+        color_code: ColorCode::new(Color::Yellow, Color::Black),
+        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+    });
+}
+
+/// The standard color palette in VGA text mode.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-
-//All colors
 pub enum Color {
     Black = 0,
     Blue = 1,
@@ -21,56 +51,77 @@ pub enum Color {
     Yellow = 14,
     White = 15,
 }
+
+/// A combination of a foreground and a background color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ColorCode(u8);
+pub struct ColorCode(u8);
 
 impl ColorCode {
+    /// Create a new `ColorCode` with the given foreground and background colors.
     fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
 
+/// A screen character in the VGA text buffer, consisting of an ASCII character and a `ColorCode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-struct Char {
-    char: u8,
-    color: ColorCode,
+struct ScreenChar {
+    ascii_character: u8,
+    color_code: ColorCode,
 }
 
+/// The height of the text buffer (normally 25 lines).
 const BUFFER_HEIGHT: usize = 25;
+/// The width of the text buffer (normally 80 columns).
 const BUFFER_WIDTH: usize = 80;
 
+/// A structure representing the VGA text buffer.
 struct Buffer {
-    chars: [[Char; BUFFER_WIDTH]; BUFFER_HEIGHT],
+    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
-pub struct Screen {
-    col: usize,
-    row: usize,
-    color: ColorCode,
+
+/// A writer type that allows writing ASCII bytes and strings to an underlying `Buffer`.
+///
+/// Wraps lines at `BUFFER_WIDTH`. Supports newline characters and implements the
+/// `core::fmt::Write` trait.
+pub struct Writer {
+    column_position: usize,
+    color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
-impl Screen {
+
+impl Writer {
+    /// Writes an ASCII byte to the buffer.
+    ///
+    /// Wraps lines at `BUFFER_WIDTH`. Supports the `\n` newline character.
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
-            b'\n' => self.newline(),
+            b'\n' => self.new_line(),
             byte => {
-                if self.col >= BUFFER_WIDTH {
-                    self.newline();
+                if self.column_position >= BUFFER_WIDTH {
+                    self.new_line();
                 }
 
-                let row = self.row;
-                let col = self.col;
-                let color = self.color;
+                let row = BUFFER_HEIGHT - 1;
+                let col = self.column_position;
 
-                self.buffer.chars[row][col] = Char {
-                    char: byte,
-                    color,
-                };
-                self.col += 1;
+                let color_code = self.color_code;
+                self.buffer.chars[row][col].write(ScreenChar {
+                    ascii_character: byte,
+                    color_code,
+                });
+                self.column_position += 1;
             }
         }
     }
-    pub fn print(&mut self, s: &str) {
+
+    /// Writes the given ASCII string to the buffer.
+    ///
+    /// Wraps lines at `BUFFER_WIDTH`. Supports the `\n` newline character. Does **not**
+    /// support strings with non-ASCII characters, since they can't be printed in the VGA text
+    /// mode.
+    fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
                 // printable ASCII byte or newline
@@ -78,29 +129,92 @@ impl Screen {
                 // not part of printable ASCII range
                 _ => self.write_byte(0xfe),
             }
+        }
+    }
 
+    /// Shifts all lines one line up and clears the last row.
+    fn new_line(&mut self) {
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[row][col].read();
+                self.buffer.chars[row - 1][col].write(character);
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT - 1, ColorCode::new(Color::Black, Color::Black));
+        self.column_position = 0;
+    }
+
+    /// Clears a row by overwriting it with blank characters.
+    fn clear_row(&mut self, row: usize, color: ColorCode) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: color,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col].write(blank);
         }
     }
-    fn newline(&mut self) {
-        self.row += 1;
-        self.col = 0;
-    }
-    fn put_pixel(&mut self, color : ColorCode, x: usize, y: usize){
-        self.buffer.chars[x][y] = Char{
-            char: 0,
-            color: color,
-        }
+    fn put_pixel(&mut self, color :ColorCode, x: usize, y: usize){
+        self.buffer.chars[x][y].write(ScreenChar{
+            ascii_character: b' ',
+            color_code: color,
+        })
     }
 }
 
-pub fn createScreen() {
-    let mut screen = Screen {
-        col: BUFFER_WIDTH / 2,
-        row: BUFFER_HEIGHT / 2,
-        color: ColorCode::new(Color::Green, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    };
-    screen.print("
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
+/// Like the `print!` macro in the standard library, but prints to the VGA text buffer.
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::screen::_print(format_args!($($arg)*)));
+}
+
+/// Like the `println!` macro in the standard library, but prints to the VGA text buffer.
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+/// Prints the given formatted string to the VGA text buffer through the global `WRITER` instance.
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| {
+        WRITER.lock().write_fmt(args).unwrap();
+    });
+}
+pub fn pixel(color: ColorCode, x: usize, y: usize){
+    WRITER.lock().put_pixel(color : ColorCode, x: usize, y: usize);
+}
+pub fn fill(color: ColorCode){
+    for x in 0..BUFFER_HEIGHT{
+        WRITER.lock().clear_row(x, color);
+    }
+}
+
+pub fn create_screen(){
+    use scheduler::sleep;
+    fill(ColorCode::new(Color::Blue, Color::Blue));
+    sleep(3);
+    fill(ColorCode::new(Color::Black, Color::Black));
+    logo_screen();
+    sleep(3);
+    fill(ColorCode::new(Color::Green, Color::Green));
+    sleep(3);
+    fill(ColorCode::new(Color::Black, Color::Black));
+}
+
+pub fn logo_screen(){
+    println!("
 ----------------------------------
 |     -      |-    |  ||   -   - |
 |    | |     | -   |         -   |
@@ -109,25 +223,4 @@ pub fn createScreen() {
 | |       |  |    -|  ||  -     -|
 ----------------------------------
     ");
-
-    //logoScreen(screen);
-    screen.newline();
-    screen.print("Loading, please wait...");
-    screen.put_pixel(ColorCode::new(Color::Blue, Color::Green), 2, 2);
-
-    for time in 0..100{
-        screen.print(".");
-    }
 }
-
-/*fn logoScreen(screen: Screen){
-    screen.print("
-----------------------------------
-|     -      |-    |  ||   -   - |
-|    | |     | -   |         -   |
-|   |   |    |  -  |  ||    - -  |
-|  |-----|   |   - |  ||   -   - |
-| |       |  |    -|  ||  -     -|
-----------------------------------
-    ");
-}*/
