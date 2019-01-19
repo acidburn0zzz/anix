@@ -36,7 +36,8 @@ boot:
 	cp -r src/files/* build/root/
 	mv build/bootimage-Anix.bin build/root/boot/Anix.bin
 	grub-mkrescue -o build/Anix.iso build/root
+	sudo dd if=build/Anix.iso of=/dev/sdb
 	#mkfs.ext4 build/Anix.iso
 	
-	qemu-system-x86_64 -cdrom build/Anix.iso
+	#qemu-system-x86_64 -cdrom build/Anix.iso
 

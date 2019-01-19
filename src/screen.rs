@@ -204,13 +204,26 @@ pub fn fill(color: ColorCode){
 pub fn create_screen(){
     use scheduler::sleep;
     fill(ColorCode::new(Color::Blue, Color::Blue));
-    sleep(3);
+    sleep(80);
     fill(ColorCode::new(Color::Black, Color::Black));
     logo_screen();
-    sleep(3);
+    sleep(80);
     fill(ColorCode::new(Color::Green, Color::Green));
-    sleep(3);
+    sleep(80);
     fill(ColorCode::new(Color::Black, Color::Black));
+    sleep(80);
+    println!("Test Video mode");
+    sleep(80);
+    fill(ColorCode::new(Color::Black, Color::Black));
+    /*let mut graphic = 0xA0000000 as *mut u8;
+    unsafe{
+        for i in 0..100{
+            for ii in 0..100{
+                *graphic.offset(320*i + ii as isize) = 15;
+            }
+        }
+    }*/
+    sleep(3);
 }
 
 pub fn logo_screen(){
