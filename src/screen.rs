@@ -1,18 +1,3 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
 use core::fmt;
 use spin::Mutex;
 use volatile::Volatile;
@@ -24,7 +9,7 @@ lazy_static! {
     /// Used by the `print!` and `println!` macros.
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
+        color_code: ColorCode::new(Color::Green, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
 }
@@ -154,18 +139,18 @@ impl Writer {
             self.buffer.chars[row][col].write(blank);
         }
     }
-    fn put_pixel(&mut self, color :ColorCode, x: usize, y: usize){
-        self.buffer.chars[x][y].write(ScreenChar{
-            ascii_character: b' ',
-            color_code: color,
-        })
-    }
 }
 
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
+    }
+}
+
+pub fn fill(color: ColorCode){
+    for x in 0..BUFFER_HEIGHT{
+        WRITER.lock().clear_row(x, color);
     }
 }
 
@@ -192,30 +177,22 @@ pub fn _print(args: fmt::Arguments) {
         WRITER.lock().write_fmt(args).unwrap();
     });
 }
-pub fn pixel(color: ColorCode, x: usize, y: usize){
-    WRITER.lock().put_pixel(color : ColorCode, x: usize, y: usize);
-}
-pub fn fill(color: ColorCode){
-    for x in 0..BUFFER_HEIGHT{
-        WRITER.lock().clear_row(x, color);
-    }
-}
 
 pub fn create_screen(){
-    use scheduler::sleep;
+    use crate::scheduler::sleep;
     fill(ColorCode::new(Color::Blue, Color::Blue));
-    sleep(80);
+    sleep(40);
     fill(ColorCode::new(Color::Black, Color::Black));
     logo_screen();
-    sleep(80);
+    sleep(40);
     fill(ColorCode::new(Color::Green, Color::Green));
-    sleep(80);
+    sleep(40);
     fill(ColorCode::new(Color::Black, Color::Black));
-    sleep(80);
+    sleep(40);
     println!("Test Video mode");
-    sleep(80);
+    sleep(40);
     fill(ColorCode::new(Color::Black, Color::Black));
-    /*let mut graphic = 0xA0000000 as *mut u8;
+    /*let mut graphic = 0xB8000 as *mut u8;
     unsafe{
         for i in 0..100{
             for ii in 0..100{
@@ -227,6 +204,9 @@ pub fn create_screen(){
 }
 
 pub fn logo_screen(){
+	for _i in 0..BUFFER_HEIGHT / 2 - 7{
+		WRITER.lock().new_line();
+	}
     println!("
 ----------------------------------
 |     -      |-    |  ||   -   - |

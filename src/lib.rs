@@ -1,91 +1,57 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
-#![feature(lang_items)]
 #![no_std] // don't link the Rust standard library
-#![feature(type_ascription)]
+#![no_main] // disable all Rust-level entry points
+#![allow(unused_imports)]
 #![feature(abi_x86_interrupt)]
-
-//Crates
-extern crate rlibc;
-extern crate x86_64;
-extern crate spin;
-extern crate pic8259_simple;
-extern crate lazy_static;
-extern crate pc_keyboard;
-extern crate volatile;
-extern crate uart_16550;
+#![feature(uniform_paths)]
 
 use core::panic::PanicInfo;
 
-//Mods
 #[macro_use]
 pub mod screen;
-
 pub mod gdt;
-
-pub mod fs;
-use fs::mainfs;
-
+pub mod interrupts;
+pub mod serial;
 pub mod scheduler;
 
-pub mod interrupts;
+/// This function is the entry point, since the linker looks for a function
+/// named `_start` by default.
 
-#[no_mangle]
-pub extern fn rust_main() {
-    //Start msg
+#[no_mangle] // don't mangle the name of this function
+pub extern "C" fn rust_main() -> ! {
+	use interrupts::PICS;
     println!("Anix is starting...");
-    
-    //Interrupts
-    use interrupts::PICS;
-    use x86_64::instructions::interrupts::*;
-    
-    println!("DEBUG: init gdt");
+	
+	screen::create_screen();
+	
+	println!("DEBUG: init GDT");
     gdt::init();
-
+    
     println!("DEBUG: init idt");
     interrupts::init_idt();
     
     println!("DEBUG: init pics");
     unsafe { PICS.lock().initialize() };
-
-    println!("DEBUG: enable interrupts");
+    
+    println!("DEBUG: interrupts are enable!");
     x86_64::instructions::interrupts::enable();
     
-    //Screen
-    screen::create_screen();
-    
-    //FS(does not work yet)
-    fs::mainfs();
-    
-    //End msg
-    println!("Anix is started successfully! It returns: {}", "It works");
-    
-    loop {
-        x86_64::instructions::hlt();
-    }
+	hlt_loop();
 }
 
+/// This function is called on panic.
 #[panic_handler]
-#[no_mangle]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    hlt_loop();            // new
+    hlt_loop();
 }
 
-//Tools
+pub unsafe fn exit_qemu() {
+    use x86_64::instructions::port::Port;
+
+    let mut port = Port::<u32>::new(0xf4);
+    port.write(0);
+}
+
 pub fn hlt_loop() -> ! {
     loop {
         x86_64::instructions::hlt();

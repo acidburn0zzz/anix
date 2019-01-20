@@ -18,8 +18,8 @@ boot:
 	rm -rf build
 	mkdir -p build/root/boot/grub
 
-	RUST_BACKTRACE=1 cargo xbuild --verbose --target x86_64-Anix.json
-	cp target/x86_64-Anix/debug/libAnix.a src/output
+	cargo +nightly xbuild --verbose
+	cp target/debug/libAnix.a src/output
 
 	nasm -f elf64 src/asm/multiboot.asm -o src/output/multiboot.o
 	nasm -f elf64 src/asm/boot.asm -o src/output/boot.o

@@ -162,13 +162,13 @@ gdt64:
     dq gdt64
 
 section .bss
-align 4096
+align 16384
 p4_table:
-    resb 4096
+    resb 16384
 p3_table:
-    resb 4096
+    resb 16384
 p2_table:
-    resb 4096
+    resb 16384
 stack_bottom:
-    resb 64
+    resb 16384
 stack_top:
