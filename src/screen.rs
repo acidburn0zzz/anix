@@ -43,7 +43,7 @@ pub struct ColorCode(u8);
 
 impl ColorCode {
     /// Create a new `ColorCode` with the given foreground and background colors.
-    fn new(foreground: Color, background: Color) -> ColorCode {
+    pub fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
@@ -57,9 +57,9 @@ struct ScreenChar {
 }
 
 /// The height of the text buffer (normally 25 lines).
-const BUFFER_HEIGHT: usize = 25;
+pub const BUFFER_HEIGHT: usize = 25;
 /// The width of the text buffer (normally 80 columns).
-const BUFFER_WIDTH: usize = 80;
+pub const BUFFER_WIDTH: usize = 80;
 
 /// A structure representing the VGA text buffer.
 struct Buffer {
@@ -106,7 +106,7 @@ impl Writer {
     /// Wraps lines at `BUFFER_WIDTH`. Supports the `\n` newline character. Does **not**
     /// support strings with non-ASCII characters, since they can't be printed in the VGA text
     /// mode.
-    fn write_string(&mut self, s: &str) {
+    pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
             match byte {
                 // printable ASCII byte or newline
@@ -118,7 +118,7 @@ impl Writer {
     }
 
     /// Shifts all lines one line up and clears the last row.
-    fn new_line(&mut self) {
+    pub fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
@@ -130,7 +130,7 @@ impl Writer {
     }
 
     /// Clears a row by overwriting it with blank characters.
-    fn clear_row(&mut self, row: usize, color: ColorCode) {
+    pub fn clear_row(&mut self, row: usize, color: ColorCode) {
         let blank = ScreenChar {
             ascii_character: b' ',
             color_code: color,
@@ -180,17 +180,18 @@ pub fn _print(args: fmt::Arguments) {
 
 pub fn create_screen(){
     use crate::scheduler::sleep;
+    sleep(3);
     fill(ColorCode::new(Color::Blue, Color::Blue));
-    sleep(40);
+    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
     logo_screen();
-    sleep(40);
+    sleep(3);
     fill(ColorCode::new(Color::Green, Color::Green));
-    sleep(40);
+    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
-    sleep(40);
+    sleep(3);
     println!("Test Video mode");
-    sleep(40);
+    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
     /*let mut graphic = 0xB8000 as *mut u8;
     unsafe{
@@ -201,6 +202,7 @@ pub fn create_screen(){
         }
     }*/
     sleep(3);
+	
 }
 
 pub fn logo_screen(){

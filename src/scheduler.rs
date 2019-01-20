@@ -13,9 +13,27 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
-pub fn sleep(time: usize){
-	let mut tic = 0;
-	while(tic< time * 18000000){
-		tic+= 1;
+pub struct Time {
+    pub deciseconds: u8,
+    pub seconds: u8,
+    pub minutes: u8,
+    pub hours: u8,
+}
+
+pub static mut time: Time = Time {deciseconds: 0, seconds: 0, minutes: 0, hours: 0};
+
+pub fn sleep(timeForSleep: u8){
+	unsafe{
+		let secondsForSleep = time.seconds + timeForSleep;
+	
+		//let minutesForSleep = time.minute;
+		//if(secondsForSleep >= 60){minutesForSleep += secondsForSleep / 60}
+		//secondsForSleep = secondsForSleep % 60;
+	
+		while(true){
+			if(time.seconds == secondsForSleep){
+				break;
+			}
+		}
 	}
 }

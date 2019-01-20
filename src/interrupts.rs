@@ -4,7 +4,7 @@
 // problem we skip compilation of this module on Windows.
 #![cfg(not(windows))]
 
-use crate::{gdt, print, println};
+use crate::{gdt, print, println, scheduler::time};
 use pic8259_simple::ChainedPics;
 use spin;
 use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable};
@@ -55,7 +55,41 @@ extern "x86-interrupt" fn double_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut ExceptionStackFrame) {
-    print!(".");
+	use crate::screen::{WRITER, BUFFER_HEIGHT, ColorCode, Color};
+	use crate::scheduler::*;
+	unsafe{
+		time.deciseconds += 1;
+	
+		if time.deciseconds >= 19{
+			time.seconds += 1;
+			time.deciseconds = 0;
+		}
+	
+		if time.seconds >= 59{
+			time.minutes += 1;
+			time.seconds = 0;
+			
+		}
+	
+		if time.minutes >= 59{
+			time.hours += 1;
+			time.minutes = 0;
+		}
+		
+	}
+	unsafe{
+		if time.seconds >= 21 || time.minutes >= 1{
+			//Print the time in minutes:seconds format
+			print!("{}:{}", time.minutes, time.seconds);
+			
+			//Wait
+			for _l in 0..5000000{}
+			
+			//Replace the number
+			WRITER.lock().clear_row(BUFFER_HEIGHT - 1, ColorCode::new(Color::Black, Color::Black));
+			WRITER.lock().new_line();
+		}
+	}
     unsafe { PICS.lock().notify_end_of_interrupt(TIMER_INTERRUPT_ID) }
 }
 

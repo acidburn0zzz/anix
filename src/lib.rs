@@ -21,8 +21,6 @@ pub extern "C" fn rust_main() -> ! {
 	use interrupts::PICS;
     println!("Anix is starting...");
 	
-	screen::create_screen();
-	
 	println!("DEBUG: init GDT");
     gdt::init();
     
@@ -32,8 +30,10 @@ pub extern "C" fn rust_main() -> ! {
     println!("DEBUG: init pics");
     unsafe { PICS.lock().initialize() };
     
-    println!("DEBUG: interrupts are enable!");
+    println!("DEBUG: interrupts are enabled!");
     x86_64::instructions::interrupts::enable();
+    
+    screen::create_screen();
     
 	hlt_loop();
 }
