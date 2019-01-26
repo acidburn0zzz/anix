@@ -55,7 +55,7 @@ extern "x86-interrupt" fn double_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut ExceptionStackFrame) {
-	use crate::screen::{WRITER, BUFFER_HEIGHT, ColorCode, Color};
+	use crate::screen::{WRITER, BUFFER_HEIGHT, BUFFER_WIDTH, ColorCode, Color};
 	use crate::scheduler::*;
 	unsafe{
 		time.deciseconds += 1;
@@ -68,26 +68,32 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut ExceptionSt
 		if time.seconds >= 59{
 			time.minutes += 1;
 			time.seconds = 0;
+			time.deciseconds = 0;
 			
 		}
 	
 		if time.minutes >= 59{
 			time.hours += 1;
 			time.minutes = 0;
+			time.seconds = 0;
+			time.deciseconds = 0;
 		}
 		
 	}
 	unsafe{
-		if time.seconds >= 21 || time.minutes >= 1{
-			//Print the time in minutes:seconds format
-			print!("{}:{}", time.minutes, time.seconds);
-			
-			//Wait
-			for _l in 0..5000000{}
-			
+		if time.seconds >= 18 || time.minutes >= 1{
 			//Replace the number
-			WRITER.lock().clear_row(BUFFER_HEIGHT - 1, ColorCode::new(Color::Black, Color::Black));
-			WRITER.lock().new_line();
+			for p in 0..5{
+				WRITER.lock().clear_char(0, p, ColorCode::new(Color::Black, Color::Black));
+			}
+			
+			//Print the time in minutes:seconds format
+			WRITER.lock().row = 0;
+			WRITER.lock().col = 0;
+			WRITER.lock().color_code = ColorCode::new(Color::Red, Color::White);
+			print!("{}:{}", time.minutes, time.seconds);
+			//Wait
+			for _l in 0..1000000{}
 		}
 	}
     unsafe { PICS.lock().notify_end_of_interrupt(TIMER_INTERRUPT_ID) }
@@ -95,6 +101,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut ExceptionSt
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut ExceptionStackFrame) {
     use x86_64::instructions::port::Port;
+    use crate::screen::{WRITER, BUFFER_HEIGHT, BUFFER_WIDTH, ColorCode, Color};
+
     use pc_keyboard::{Keyboard, ScancodeSet1, DecodedKey, layouts};
     use spin::Mutex;
 
@@ -110,8 +118,18 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Exceptio
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
-                DecodedKey::Unicode(character) => print!("{}", character),
-                DecodedKey::RawKey(key) => print!("{:?}", key),
+                DecodedKey::Unicode(character) => {
+		    //WRITER.lock().row = 5;
+		    //WRITER.lock().col = 0;
+		    //WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
+		    print!("{}", character)
+		},
+                DecodedKey::RawKey(key) => {
+		    //WRITER.lock().row = 5;
+		    //WRITER.lock().col = 0;
+		    //WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
+		    print!("{:?}", key)
+		},
             }
         }
     }

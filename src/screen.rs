@@ -8,7 +8,8 @@ lazy_static! {
     ///
     /// Used by the `print!` and `println!` macros.
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
+        row: 0,
+        col: 0,
         color_code: ColorCode::new(Color::Green, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
@@ -71,8 +72,9 @@ struct Buffer {
 /// Wraps lines at `BUFFER_WIDTH`. Supports newline characters and implements the
 /// `core::fmt::Write` trait.
 pub struct Writer {
-    column_position: usize,
-    color_code: ColorCode,
+	pub row: usize,
+    pub col: usize,
+    pub color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
 
@@ -84,19 +86,19 @@ impl Writer {
         match byte {
             b'\n' => self.new_line(),
             byte => {
-                if self.column_position >= BUFFER_WIDTH {
+                if self.col >= BUFFER_WIDTH {
                     self.new_line();
                 }
 
-                let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
+                let row = self.row;
+                let col = self.col;
 
                 let color_code = self.color_code;
                 self.buffer.chars[row][col].write(ScreenChar {
                     ascii_character: byte,
                     color_code,
                 });
-                self.column_position += 1;
+                self.col += 1;
             }
         }
     }
@@ -119,25 +121,33 @@ impl Writer {
 
     /// Shifts all lines one line up and clears the last row.
     pub fn new_line(&mut self) {
-        for row in 1..BUFFER_HEIGHT {
-            for col in 0..BUFFER_WIDTH {
-                let character = self.buffer.chars[row][col].read();
-                self.buffer.chars[row - 1][col].write(character);
+        for r in 1..BUFFER_HEIGHT {
+            for c in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[r][c].read();
+                self.buffer.chars[r - 1][c].write(character);
             }
         }
         self.clear_row(BUFFER_HEIGHT - 1, ColorCode::new(Color::Black, Color::Black));
-        self.column_position = 0;
+        self.col = 0;
     }
 
     /// Clears a row by overwriting it with blank characters.
-    pub fn clear_row(&mut self, row: usize, color: ColorCode) {
+    pub fn clear_row(&mut self, r: usize, color: ColorCode) {
         let blank = ScreenChar {
             ascii_character: b' ',
             color_code: color,
         };
-        for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
+        for c in 0..BUFFER_WIDTH {
+            self.buffer.chars[r][c].write(blank);
         }
+    }
+    
+    pub fn clear_char(&mut self, r: usize, c: usize, color: ColorCode) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: color,
+        };
+		self.buffer.chars[r][c].write(blank);
     }
 }
 

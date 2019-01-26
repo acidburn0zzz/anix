@@ -3,6 +3,9 @@
 #![allow(unused_imports)]
 #![feature(abi_x86_interrupt)]
 #![feature(uniform_paths)]
+#![feature(type_ascription)]
+#![feature(global_asm)]
+#![feature(asm)]
 
 use core::panic::PanicInfo;
 
@@ -12,16 +15,17 @@ pub mod gdt;
 pub mod interrupts;
 pub mod serial;
 pub mod scheduler;
+pub mod fs;
 
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
 
 #[no_mangle] // don't mangle the name of this function
 pub extern "C" fn rust_main() -> ! {
-	use interrupts::PICS;
+    use interrupts::PICS;
     println!("Anix is starting...");
 	
-	println!("DEBUG: init GDT");
+    println!("DEBUG: init GDT");
     gdt::init();
     
     println!("DEBUG: init idt");
@@ -33,9 +37,10 @@ pub extern "C" fn rust_main() -> ! {
     println!("DEBUG: interrupts are enabled!");
     x86_64::instructions::interrupts::enable();
     
-    screen::create_screen();
-    
-	hlt_loop();
+    //screen::create_screen();
+    println!("DEBUG: Fs is launched");
+    fs::fsmain();
+    hlt_loop();
 }
 
 /// This function is called on panic.
