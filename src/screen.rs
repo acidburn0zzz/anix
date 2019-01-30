@@ -8,7 +8,7 @@ lazy_static! {
     ///
     /// Used by the `print!` and `println!` macros.
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        row: 0,
+        row: BUFFER_HEIGHT - 1,
         col: 0,
         color_code: ColorCode::new(Color::Green, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
@@ -188,7 +188,7 @@ pub fn _print(args: fmt::Arguments) {
     });
 }
 
-pub fn create_screen(){
+pub fn starter_screen(){
     use crate::scheduler::sleep;
     sleep(3);
     fill(ColorCode::new(Color::Blue, Color::Blue));

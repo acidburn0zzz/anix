@@ -13,11 +13,43 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see https://www.gnu.org/licenses.
 
+GRUBCONFIG = set timeout=5\\n\
+insmod part_msdos\\n\
+insmod lvm\\n\
+insmod ext2\\n\
+\\n\
+menuentry "Anix" {\\n\
+	multiboot2 /boot/Anix.bin\\n\
+	boot\\n\
+}\\n
+
+USBPORT = ""
+ERROR = ""
+sdb = /dev/sdb
+sdc = /dev/sdc
+
+ifeq ($(shell test -e $(sdb) && echo -n yes),yes)
+	USBPORT=$(sdb)
+else
+	ifeq ($(shell test -e $(sdc) && echo -n yes),yes)
+		USBPORT=$(sdc)
+	else
+		ERROR = "There are no plugged disk"
+	endif
+endif
+
 all:boot
 
 boot:
 	#Mount a key in your computer this script copy all files on it
-
+	
+	#Test if there are errors
+ifeq ($(ERROR), "")
+	
+else
+	$(error $(ERROR))
+endif
+	
 	#Delete files
 	rm -rf build
 	mkdir -p build/root
@@ -37,27 +69,19 @@ boot:
 	#Create grub config file
 	rm src/grub/grub.cfg
 	touch src/grub/grub.cfg
-	echo 'set timeout=5\
-	insmod part_msdos\
-	insmod lvm\
-	insmod ext2\
-\
-	menuentry "Anix" {\
-		multiboot2 /boot/Anix.bin\
-		boot\
-	}' >> src/grub/grub.cfg
+	@$(SHELL) -c "echo '$(GRUBCONFIG)'" >> src/grub/grub.cfg | sed -e 's/^ //'
 
 	#WARNING: If you are running this script for the first time
 	#sudo parted /dev/sdb mklabel msdos
 	#sudo mkfs.ext2 /dev/sdb1
 
 	#Mount iso
-	sudo mount /dev/sdb1 build/root
+	sudo mount $(USBPORT)1 build/root
 
 	#Copy files in iso
 	sudo mkdir -p build/root/boot/grub
 	sudo cp -r src/files/* build/root/
-	sudo grub-install /dev/sdb --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose
+	sudo grub-install $(USBPORT) --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose
 	sudo cp src/grub/grub.cfg build/root/boot/grub/grub.cfg
 
 	sudo mv build/bootimage-Anix.bin build/root/boot/Anix.bin
@@ -65,6 +89,9 @@ boot:
 	#For write in an usb key :
 	sudo umount build/root
 
-	sudo parted /dev/sdb set 1 boot on
+	sudo parted $(USBPORT) set 1 boot on
 
+clean:
+	rm -rf build
+	mkdir -p build/root
 

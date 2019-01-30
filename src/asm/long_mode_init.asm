@@ -14,6 +14,7 @@
 ;along with this program.  If not, see https://www.gnu.org/licenses.
 
 global long_mode_start
+global syscall
 section .text
 bits 64
 long_mode_start:
@@ -31,4 +32,4 @@ long_mode_start:
     ; print `OKAY` to screen
     mov rax, 0x2f592f412f4b2f4f
     mov qword [0xb8000], rax
-    hlt 
+    hlt

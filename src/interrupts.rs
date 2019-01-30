@@ -19,6 +19,18 @@ pub static PICS: spin::Mutex<ChainedPics> =
 pub const TIMER_INTERRUPT_ID: u8 = PIC_1_OFFSET;
 pub const KEYBOARD_INTERRUPT_ID: u8 = PIC_1_OFFSET + 1;
 
+pub struct Input{
+	pub actived: bool,
+	pub content: [char; 30],
+	pub number: usize,
+}
+
+pub static mut input: Input = Input{
+	actived: true,
+	number: 0,
+	content: [' '; 30],
+};
+
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
@@ -80,23 +92,16 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut ExceptionSt
 		}
 		
 	}
-	unsafe{
-		if time.seconds >= 18 || time.minutes >= 1{
-			//Replace the number
-			for p in 0..5{
-				WRITER.lock().clear_char(0, p, ColorCode::new(Color::Black, Color::Black));
-			}
-			
+	/*unsafe{
+	    if time.seconds >= 18 || time.minutes >= 1{
 			//Print the time in minutes:seconds format
 			WRITER.lock().row = 0;
 			WRITER.lock().col = 0;
 			WRITER.lock().color_code = ColorCode::new(Color::Red, Color::White);
 			print!("{}:{}", time.minutes, time.seconds);
-			//Wait
-			for _l in 0..1000000{}
-		}
-	}
-    unsafe { PICS.lock().notify_end_of_interrupt(TIMER_INTERRUPT_ID) }
+	    }
+    }*/
+    unsafe{PICS.lock().notify_end_of_interrupt(TIMER_INTERRUPT_ID)}
 }
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut ExceptionStackFrame) {
@@ -119,20 +124,73 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Exceptio
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
-		    //WRITER.lock().row = 5;
-		    //WRITER.lock().col = 0;
-		    //WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
-		    print!("{}", character)
+		    unsafe{
+			if input.actived == true{
+			    //If enter is pressed exec the function
+			    if character == '\n'{
+				input.actived = false;
+				detectcmd(input.content);
+				WRITER.lock().new_line();
+				print!(">");
+				input.content = [' '; 30];
+				input.number = 0;
+				input.actived = true;
+			    }
+			    else{
+				print!("{}", character);
+				input.content[input.number] = character;
+				input.number += 1;
+			    }
+			}
+		    }
 		},
                 DecodedKey::RawKey(key) => {
-		    //WRITER.lock().row = 5;
-		    //WRITER.lock().col = 0;
-		    //WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
-		    print!("{:?}", key)
+		    unsafe{
+			if input.actived == true{
+			    print!("{:?}", key);
+			}
+		    }
 		},
             }
         }
     }
 
     unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_INTERRUPT_ID) }
+}
+
+pub fn unknown_command(cmd: [char; 30]){
+    println!("Unknow command");
+}
+
+pub fn hello_world(cmd: [char; 30]){
+    print!("Hello world !");
+}
+
+static commands: [Command; 2] = [
+    Command{cmd: [' '; 30], function: unknown_command},
+    Command{cmd: ['h', 'e', 'l', 'l', 'o', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: hello_world},
+];
+
+pub struct Command{
+    pub cmd: [char; 30],
+    pub function: fn(cmd: [char; 30]),
+}
+
+///Function for detect command and exec it
+pub fn detectcmd(cmd: [char; 30]){
+    //TODO: be able to pass parameters (split the array with spaces)
+    let mut commandIsExec = false;
+    
+    ///Find the function among the array of functions
+    for c in commands.iter(){
+	if cmd == c.cmd{
+	    (c.function)(cmd);
+	    commandIsExec = true;
+	}
+    }
+
+    //Detects if the function has been executed
+    if commandIsExec == false{
+	println!("Unknow command: {:?}", cmd);
+    }
 }

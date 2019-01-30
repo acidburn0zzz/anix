@@ -23,8 +23,9 @@ pub mod fs;
 #[no_mangle] // don't mangle the name of this function
 pub extern "C" fn rust_main() -> ! {
     use interrupts::PICS;
+
     println!("Anix is starting...");
-	
+    
     println!("DEBUG: init GDT");
     gdt::init();
     
@@ -37,9 +38,10 @@ pub extern "C" fn rust_main() -> ! {
     println!("DEBUG: interrupts are enabled!");
     x86_64::instructions::interrupts::enable();
     
-    //screen::create_screen();
-    println!("DEBUG: Fs is launched");
-    fs::fsmain();
+    print!(">");
+    //screen::starter_screen();
+    //println!("DEBUG: Fs is launched");
+    //fs::fsmain();
     hlt_loop();
 }
 
