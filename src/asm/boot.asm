@@ -1,24 +1,24 @@
-;Copyright (C) 2018-2019 Nicolas Fouquet
-
+;Copyright (C) 2018-2019 Nicolas Fouquet 
+;
 ;This program is free software: you can redistribute it and/or modify
 ;it under the terms of the GNU General Public License as published by
 ;the Free Software Foundation, either version 3 of the License, or
 ;(at your option) any later version.
-
+;
 ;This program is distributed in the hope that it will be useful,
 ;but WITHOUT ANY WARRANTY; without even the implied warranty of
-;MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 ;GNU General Public License for more details.
-
+;
 ;You should have received a copy of the GNU General Public License
 ;along with this program.  If not, see https://www.gnu.org/licenses.
 
-global start
+global _start
 extern long_mode_start
 
 section .text
 bits 32
-start:
+_start:
     mov esp, stack_top
     
     call check_multiboot
@@ -162,13 +162,13 @@ gdt64:
     dq gdt64
 
 section .bss
-align 16384
+align 65536
 p4_table:
-    resb 16384
+    resb 65536
 p3_table:
-    resb 16384
+    resb 65536
 p2_table:
-    resb 16384
+    resb 65536
 stack_bottom:
-    resb 16384
+    resb 65536
 stack_top:

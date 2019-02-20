@@ -1,3 +1,18 @@
+/*Copyright (C) 2018-2019 Nicolas Fouquet 
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses.
+*/
 use core::fmt;
 use spin::Mutex;
 use volatile::Volatile;
@@ -189,7 +204,7 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 pub fn starter_screen(){
-    use crate::scheduler::sleep;
+    use crate::time::sleep;
     sleep(3);
     fill(ColorCode::new(Color::Blue, Color::Blue));
     sleep(3);
@@ -216,9 +231,6 @@ pub fn starter_screen(){
 }
 
 pub fn logo_screen(){
-	for _i in 0..BUFFER_HEIGHT / 2 - 7{
-		WRITER.lock().new_line();
-	}
     println!("
 ----------------------------------
 |     -      |-    |  ||   -   - |
@@ -228,4 +240,28 @@ pub fn logo_screen(){
 | |       |  |    -|  ||  -     -|
 ----------------------------------
     ");
+}
+
+pub fn move_cursor(row: usize, col: usize) {
+   let pos = row * BUFFER_WIDTH + col;
+   unsafe {
+      asm!("
+         mov al, 0xF
+         mov dx, 0x3D4
+         out dx, al
+
+         mov ax, bx
+         mov dx, 0x3D5
+         out dx, al
+
+         mov al, 0xE
+         mov dx, 0x3D4
+         out dx, al
+
+         mov ax, bx
+         shr ax, 8
+         mov dx, 0x3D5
+         out dx, al
+      " : : "{bx}" (pos) : "al", "dx": "intel");
+   }
 }

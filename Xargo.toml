@@ -1,0 +1,18 @@
+[package]
+authors = ["Nicolas Fouquet <nfouquet@mailfence.com>"]
+name = "Anix"
+version = "0.2.0"
+edition = "2018"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[lib]
+crate-type = ["staticlib"]
+ 
+[target.x86_64-unknown-linux-gnu.dependencies.std]
+
+[target.x86_64-unknown-linux-gnu.dependencies.core]
