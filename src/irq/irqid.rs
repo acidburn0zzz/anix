@@ -15,3 +15,5 @@ pub const FPU_ID: u8 = 45;
 pub const ATA1_ID: u8 = 46;
 pub const ATA2_ID: u8 = 47;
 pub const SYSCALL_ID: u8 = 0x80;
+pub const DISK_PRIMARY_ID   : u8 = 0xd0;
+pub const DISK_SECONDARY_ID : u8 = 0xd1;

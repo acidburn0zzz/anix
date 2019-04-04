@@ -13,6 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+use crate::screen::*;
 
 pub unsafe fn exit_qemu() {
     use x86_64::instructions::port::Port;
@@ -22,12 +23,18 @@ pub unsafe fn exit_qemu() {
 }
 
 pub fn hlt_loop() -> ! {
-    loop {
-        x86_64::instructions::hlt();
-    }
+	loop{
+		x86_64::instructions::hlt();
+	}
 }
 
 pub fn error(info: &'static str){
 	print!("ERROR: {}", info);
 	hlt_loop();
+}
+
+pub fn ok(){
+	WRITER.lock().color_code = ColorCode::new(Color::LightGreen, Color::Black);
+	print!(" [ OK ]");
+	WRITER.lock().color_code = ColorCode::new(Color::Green, Color::Black);
 }

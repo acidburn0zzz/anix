@@ -55,7 +55,7 @@ pub enum Color {
 
 /// A combination of a foreground and a background color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ColorCode(u8);
+pub struct ColorCode(pub u8);
 
 impl ColorCode {
     /// Create a new `ColorCode` with the given foreground and background colors.
@@ -204,19 +204,12 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 pub fn starter_screen(){
-    use crate::time::sleep;
-    sleep(3);
     fill(ColorCode::new(Color::Blue, Color::Blue));
-    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
     logo_screen();
-    sleep(3);
     fill(ColorCode::new(Color::Green, Color::Green));
-    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
-    sleep(3);
     println!("Test Video mode");
-    sleep(3);
     fill(ColorCode::new(Color::Black, Color::Black));
     /*let mut graphic = 0xB8000 as *mut u8;
     unsafe{
@@ -226,7 +219,6 @@ pub fn starter_screen(){
             }
         }
     }*/
-    sleep(3);
 	
 }
 

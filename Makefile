@@ -13,6 +13,8 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see https://www.gnu.org/licenses.
 
+include mk/colors.sh
+
 GRUBCONFIG = set timeout=5\\n\
 insmod part_msdos\\n\
 insmod lvm\\n\
@@ -28,7 +30,10 @@ set theme=/boot/grub/themes/breeze/theme.txt\\n\
 export theme\\n\
 \\n\
 menuentry "Anix" --class anix {\\n\
+	echo	'Load Anix…'\\n\
 	multiboot2 /boot/Anix.bin\\n\
+	echo	'Load the memory disk…'\\n\
+	module2 /boot/initrd.img\\n\
 	boot\\n\
 }\\n
 
@@ -44,7 +49,7 @@ else
 	ifeq ($(shell test -e $(sdc) && echo -n yes),yes)
 		USBPORT=$(sdc)
 	else
-		ERROR = "There are no plugged disk"
+		ERROR = "There are no plugged disk on $(sdb) or $(sdc)"
 	endif
 endif
 
@@ -53,13 +58,17 @@ all: main
 main:
 	#Mount a key in your computer this script copy all files on it
 	
+	echo "${RED}IT WILL DESTROY ALL FILES IN YOUR USB DEVICE!${NORMAL}"
+	echo "${RED}MAKE SURE THAT YOU DONT HAVE PLUGGED TWO DEVICES!${NORMAL}"
+	sh mk/prompt.sh
+	
 	#Test if there are errors
 ifeq ($(ERROR), "")
 	
 else
 	$(error $(ERROR))
 endif
-	echo "IT WILL DESTROY ALL FILES IN YOUR USB DEVICE!"
+
 	#Delete files
 	rm -rf build
 	mkdir -p build/root
@@ -72,35 +81,45 @@ endif
 	sh mk/build.sh
 	
 	#Compile Rust code
-	#rustc --crate-name libc ~/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.48/src/lib.rs --crate-type lib --emit=dep-info,link -C debuginfo=2 --cfg 'feature="use_std"' -C metadata=0d3fedfca66a3bb2 -C extra-filename=-0d3fedfca66a3bb2 --out-dir $(HERE)/lib --target x86_64-unknown-linux-gnu -L dependency=$(HERE)/debug/deps --cap-lints allow
 	xargo rustc --target x86_64-unknown-linux-gnu -- -L src/output/main.o
 	cp target/x86_64-unknown-linux-gnu/debug/libAnix.a src/output
 	
+	#Compile scripts
+	gcc -o build/scripts/make_initrd src/scripts/make_initrd.c
+	
+	#Convert and copy images
+	sh mk/images.sh
+	
 	#Link all files
-	ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/fs.o src/output/long_mode_init.o lib/relibc/*.a src/output/C/main.o src/output/libAnix.a -nostdlib
+	ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/long_mode_init.o lib/relibc/*.a src/output/C/*.o src/output/libAnix.a -nostdlib --allow-multiple-definition -m elf_x86_64 -error-limit=0
 	
 	#Create grub config file
 	rm src/grub/grub.cfg
 	touch src/grub/grub.cfg
 	@$(SHELL) -c "echo '$(GRUBCONFIG)'" >> src/grub/grub.cfg | sed -e 's/^ //'
 
+	#Create initrd
+	cd src/files ; ./../../build/scripts/make_initrd * ; cd ../..
+	mv src/files/initrd.img build/initrd.img 
+	
 	#WARNING: If you are running this script for the first time
 	#sudo parted /dev/sdb mklabel msdos
 	#sudo mkfs.ext2 /dev/sdb1
 
-	#Mount iso
+	#Mount device
 	sudo mount $(USBPORT)1 build/root
 
-	#Copy files in iso
+	#Copy files in device
 	sudo mkdir -p build/root/boot/grub
 	sudo cp -r src/files/* build/root/
 	sudo cp -r src/grub/themes/* build/root/boot/grub/themes/
-	sudo grub-install $(USBPORT) --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose
+	sudo grub-install $(USBPORT) --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose > "grub_log.txt" 2>&1
 	sudo cp src/grub/grub.cfg build/root/boot/grub/grub.cfg
+	sudo cp build/initrd.img build/root/boot/initrd.img
 
-	sudo mv build/bootimage-Anix.bin build/root/boot/Anix.bin
+	sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
 	
-	#For write in an usb key :
+	#Unmount device
 	sudo umount build/root
 
 	sudo parted $(USBPORT) set 1 boot on
@@ -113,9 +132,10 @@ clean:
 	#Delete ouput directories
 	rm -rf build
 	mkdir -p build/root
+	mkdir -p build/scripts
 	
 	rm -rf src/output
-	mkdir src/output/C
+	mkdir -p src/output/C
 	
 	rm -ff lib/lib/build/*.rlib
 doc:

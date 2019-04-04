@@ -14,11 +14,11 @@
 ;along with this program.  If not, see https://www.gnu.org/licenses.
 
 global long_mode_start
-extern ata_lba_write
-extern ata_lba_read
+extern rust_main
 
 section .text
 bits 64
+    
 long_mode_start:
     ; load 0 into all data segment registers
     mov ax, 0
@@ -28,14 +28,9 @@ long_mode_start:
     mov fs, ax
     mov gs, ax
 	
-    extern rust_main
     call rust_main
 
     ; print `OKAY` to screen
     mov rax, 0x2f592f412f4b2f4f
     mov qword [0xb8000], rax
     hlt
-
-section .data
-msg db "ABCDE World", 11, 10, 0
-

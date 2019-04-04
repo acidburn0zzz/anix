@@ -13,12 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
-/*
-use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
-use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
-use lazy_static::lazy_static;
-*/
+
 use core::mem;
 use x86::*;
 use x86::segmentation::SegmentSelector;
@@ -27,7 +22,8 @@ use x86::current::task::TaskStateSegment;
 use x86::bits64::segmentation::load_cs;
 use x86::segmentation::Descriptor;
 use x86::dtables::DescriptorTablePointer;
-use crate::numbers::USER_TCB_OFFSET;
+
+pub const USER_TCB_OFFSET: usize = 0xB000_0000;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const GDT_NULL: usize = 0;
@@ -58,48 +54,6 @@ pub const GDT_F_PAGE_SIZE: u8 = 1 << 7;
 pub const GDT_F_PROTECTED_MODE: u8 = 1 << 6;
 pub const GDT_F_LONG_MODE: u8 = 1 << 5;
 
-/*lazy_static! {
-    static ref TSS: TaskStateSegment = {
-        let mut tss = TaskStateSegment::new();
-        tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-            const STACK_SIZE: usize = 4096;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-
-            let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-            let stack_end = stack_start + STACK_SIZE;
-            stack_end
-        };
-        tss
-    };
-    static ref GDT: (GlobalDescriptorTable, Selectors) = {
-        let mut gdt = GlobalDescriptorTable::new();
-        let code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
-        let tss_selector = gdt.add_entry(Descriptor::tss_segment(&TSS));
-        (
-            gdt,
-            Selectors {
-                code_selector,
-                tss_selector,
-            },
-        )
-    };
-}
-
-struct Selectors {
-    code_selector: SegmentSelector,
-    tss_selector: SegmentSelector,
-}
-
-pub fn init() {
-    use x86_64::instructions::segmentation::load_cs;
-    use x86_64::instructions::tables::load_tss;
-
-    GDT.0.load();
-    unsafe {
-        load_cs(GDT.1.code_selector);
-        load_tss(GDT.1.tss_selector);
-    }
-}*/
 
 static mut INIT_GDTR: DescriptorTablePointer<Descriptor> = DescriptorTablePointer {
     limit: 0,

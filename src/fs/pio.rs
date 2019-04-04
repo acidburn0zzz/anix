@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+
 use super::io::*;
 
 /// Generic PIO
@@ -86,4 +87,3 @@ impl Io for Pio<u32> {
         }
     }
 }
- 

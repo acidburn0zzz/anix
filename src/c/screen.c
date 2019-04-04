@@ -1,5 +1,23 @@
+/*Copyright (C) 2018-2019 Nicolas Fouquet 
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses.
+*/
+
 #include "types.h"
+#include "screen.h"
 #include <stdarg.h>
+#include "lib.h"
 
 #define RAMSCREEN 0xB8000       /* début de la mémoire vidéo */
 #define SIZESCREEN 0xFA0        /* 4000, nombres d'octets d'une page texte */
@@ -9,6 +27,10 @@ char kX = 0;                    /* position courante du curseur à l'écran */
 char kY = 10;
 char kattr = 0x0E;              /* attributs vidéo des caractères à afficher */
 
+
+int new_color(enum Color fg, enum Color bg){
+	return (((int)bg) << 4 | ((int)fg));
+}
 
 /* 
  * 'scrollup' scrolle l'écran (la console mappée en ram) vers le haut
@@ -64,10 +86,6 @@ void putcar(uchar c)
                 scrollup(kY - 24);
 }
 
-int ky_value(){
-	return kY;
-}
-
 /*
  * 'print' affiche à l'écran, à la position courante du curseur, une chaîne
  * de caractères terminée par \0.
@@ -115,7 +133,7 @@ void printk(char *s, ...)
 					uival = ival;
 				itoa(buf, uival, 10);
 
-				buflen = strlen(buf);
+				buflen = sstrlen(buf);
 				if (buflen < size)
 					for (i = size, j = buflen; i >= 0;
 					     i--, j--)
@@ -131,7 +149,7 @@ void printk(char *s, ...)
 				uival = va_arg(ap, int);
 				itoa(buf, uival, 10);
 
-				buflen = strlen(buf);
+				buflen = sstrlen(buf);
 				if (buflen < size)
 					for (i = size, j = buflen; i >= 0;
 					     i--, j--)
@@ -144,7 +162,7 @@ void printk(char *s, ...)
 				uival = va_arg(ap, int);
 				itoa(buf, uival, 16);
 
-				buflen = strlen(buf);
+				buflen = sstrlen(buf);
 				if (buflen < size)
 					for (i = size, j = buflen; i >= 0;
 					     i--, j--)
@@ -158,7 +176,7 @@ void printk(char *s, ...)
 				itoa(buf, uival, 16);
 				size = 8;
 
-				buflen = strlen(buf);
+				buflen = sstrlen(buf);
 				if (buflen < size)
 					for (i = size, j = buflen; i >= 0;
 					     i--, j--)
