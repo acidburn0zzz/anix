@@ -25,40 +25,11 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 #include "disk/disk.c"
 #include "file/file.h"
 
+#include "fs/initrd/initrd.c"
 #include "fs/initrd/initrd.h"
 #include "fs/vfs/vfs.h"
 
 u32 initrd_start;
-
-void print_file(fs_node_t *file){
-	int tmp_kattr = kattr;
-	kattr = new_color(Yellow, Black);
-	
-    printk("\nFILE:");
-	printk("\n   -Name: %s", file->name);
-    printk("\n   -Mask: %d", file->mask);
-    printk("\n   -Uid: %d", file->uid);
-    printk("\n   -Gid: %d", file->gid);
-	
-	//File or directory?
-	char type[10];
-	if(file->flags == FS_DIRECTORY){
-		strcpy(type, "directory");
-	}
-	if(file->flags == FS_FILE){
-		strcpy(type, "file");
-	}
-	else{
-		strcpy(type, "unknown");
-	}
-	
-    printk("\n   -Flags : %d -> %s", file->flags, type);
-    printk("\n   -Inode: %d", file->inode);
-    printk("\n   -Length: %d", file->length);
-    printk("\n   -Impl: %d", file->impl);
-	//Restore color
-	kattr = tmp_kattr;
-}
 
 void ok(){
 	int tmp_kattr = kattr;
@@ -76,61 +47,32 @@ void test_fs(int row, int col, int color){
 	kY = row;
 	
 	printk("\nInitialize initrd");
-	fs_root = initialise_initrd(initrd_start);
+	fs_node_t *fs_root = initialise_initrd(initrd_start);
 	
 	int i = 0;
 	struct dirent *node = 0;
-	while ( (node = readdir_fs(fs_root, i)) != 0){
+	
+	while ((node = initrd_readdir(fs_root, i)) != 0){
 		printk("\nFound file ");
 		printk(node->name);
-		fs_node_t *fsnode = finddir_fs(fs_root, node->name);
+		fs_node_t *fsnode = initrd_finddir(fs_root, node->name);
 
 		if ((fsnode->flags&0x7) == FS_DIRECTORY)
 		{
-			printk("\n\t(directory)\n");
+			printk("(directory)");
 		}
 		else
 		{
-			printk("\n\t contents: \"");
 			char buf[256];
-			u32 sz = read_fs(fsnode, 0, 256, buf);
-			int j;
-			for (j = 0; j < sz; j++){
-				printk(buf[j]);
-			}
-			
-			printk("\"\n");
+			read_fs(fsnode, 0, 0, buf);
+			printk("\nContent: %s", buf);
 		}
 		i++;
 	}
 	
-	/*int i = 0;
-	struct dirent *node = 0;
-	while ( (node = readdir_fs(fs_root, i)) != 0){
-		printk("Found file ");
-		printk(node->name);
-		fs_node_t *fsnode = finddir_fs(fs_root, node->name);
-
-		if ((fsnode->flags&0x7) == FS_DIRECTORY)
-		{
-			printk("\n\t(directory)\n");
-		}
-		else
-		{
-			printk("\n\t contents: \"");
-			char buf[256];
-			u32 sz = read_fs(fsnode, 0, 256, buf);
-			int j;
-			for (j = 0; j < sz; j++){
-				printk(buf[j]);
-			}
-			
-			printk("\"\n");
-		}
-		i++;
-	}*/
-    
-	/*struct partition *p1;
+	/*
+	//TODO: Ext2 file management
+	struct partition *p1;
 	struct disk *hd;
 	struct file *root;
 	

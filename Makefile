@@ -53,30 +53,19 @@ else
 	endif
 endif
 
-all: main
+#This task mount an usb device and copy all Anix files on it
 
-main:
-	#Mount a key in your computer this script copy all files on it
-	
+	#WARNING: If you are running this script for the first time
+	#	-Create a msdos label on your partition: run ´sudo parted /dev/sdb mklabel msdos´ or use Gparted (Partition->New->Msdos)
+	#	-Format the partition in ext2: run ´sudo mkfs.ext2 /dev/sdb1´ or use Gparted (Click on the partition->Format in->Ext2)
+all: msg clear compile convert link grub-config initrd test-errors mount copy umount set-bootable
+
+msg:
 	echo "${RED}IT WILL DESTROY ALL FILES IN YOUR USB DEVICE!${NORMAL}"
 	echo "${RED}MAKE SURE THAT YOU DONT HAVE PLUGGED TWO DEVICES!${NORMAL}"
 	sh mk/prompt.sh
-	
-	#Test if there are errors
-ifeq ($(ERROR), "")
-	
-else
-	$(error $(ERROR))
-endif
 
-	#Delete files
-	rm -rf build
-	mkdir -p build/root
-	mkdir -p build/scripts
-	
-	rm -rf src/output
-	mkdir -p src/output/C
-
+compile:
 	#Compile C and assembly
 	sh mk/build.sh
 	
@@ -86,29 +75,38 @@ endif
 	
 	#Compile scripts
 	gcc -o build/scripts/make_initrd src/scripts/make_initrd.c
-	
+
+convert:
 	#Convert and copy images
 	sh mk/images.sh
-	
+
+link:
 	#Link all files
 	ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/long_mode_init.o lib/relibc/*.a src/output/C/*.o src/output/libAnix.a -nostdlib --allow-multiple-definition -m elf_x86_64 -error-limit=0
-	
+
+grub-config:
 	#Create grub config file
-	rm src/grub/grub.cfg
-	touch src/grub/grub.cfg
 	@$(SHELL) -c "echo '$(GRUBCONFIG)'" >> src/grub/grub.cfg | sed -e 's/^ //'
 
+initrd:
 	#Create initrd
 	cd src/files ; ./../../build/scripts/make_initrd * ; cd ../..
 	mv src/files/initrd.img build/initrd.img 
-	
-	#WARNING: If you are running this script for the first time
-	#sudo parted /dev/sdb mklabel msdos
-	#sudo mkfs.ext2 /dev/sdb1
 
+test-errors:
+	#Test if there are errors
+ifeq ($(ERROR), "")
+	
+else
+	echo "${RED}$(ERROR)${NORMAL}"
+	killall make
+endif
+
+mount:
 	#Mount device
 	sudo mount $(USBPORT)1 build/root
 
+copy:
 	#Copy files in device
 	sudo mkdir -p build/root/boot/grub
 	sudo cp -r src/files/* build/root/
@@ -118,26 +116,31 @@ endif
 	sudo cp build/initrd.img build/root/boot/initrd.img
 
 	sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
-	
+
+umount:
 	#Unmount device
 	sudo umount build/root
 
+set-bootable:
 	sudo parted $(USBPORT) set 1 boot on
+	
+clear:
+	#Delete files
+	rm -rf build
+	rm -rf assets/build
+	rm -f src/grub/grub.cfg
+	rm -rf src/output
+	
+	mkdir -p build/root
+	mkdir -p build/scripts
+	mkdir assets/build
+	mkdir -p src/output/C
+	touch src/grub/grub.cfg
 
-clean:
+clean: clear
 	#Clean Rust compiled files
 	cargo clean
 	xargo clean
-	
-	#Delete ouput directories
-	rm -rf build
-	mkdir -p build/root
-	mkdir -p build/scripts
-	
-	rm -rf src/output
-	mkdir -p src/output/C
-	
-	rm -ff lib/lib/build/*.rlib
 doc:
 	cargo doc
 

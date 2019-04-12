@@ -1,5 +1,5 @@
 while true; do
-    read -p "Are you sure to continue ?" yn
+    read -p "Do you want to continue ?" yn
     case $yn in
         [Yy]* ) break;;
         [Nn]* ) killall make;;

@@ -19,6 +19,7 @@ struct initrd_header
 {
 	unsigned char magic;
 	char name[64];
+	char content[256];
 	unsigned int offset;
 	unsigned int length;
 };
@@ -35,7 +36,7 @@ int main(char argc, char **argv)
 	printf("Headers: %d\n", nheaders);
 	for(i = 0; i < nheaders; i++)
 	{
-		printf("Writing file %s at 0x%x\n", argv[i + 1],  off);
+		printf("Writing file %s at 0x%x with content: ", argv[i + 1],  off);
 		strcpy(headers[i].name, argv[i + 1]);
 		headers[i].offset = off;
 		FILE *stream = fopen(argv[i + 1], "r");
@@ -49,22 +50,26 @@ int main(char argc, char **argv)
 		off += headers[i].length;
 		fclose(stream);
 		headers[i].magic = 0xBF;
+		
+		//Read the content of the file
+		FILE *rstream = fopen(argv[i + 1], "r");
+		unsigned char *buf = (unsigned char *)malloc(headers[i].length);
+		fread(buf, 1, headers[i].length, rstream);
+		
+		int w;
+		for(w = 0; w < headers[i].length; w++){
+			headers[i].content[w] = buf[w];
+		}
+		
+		printf("%s\n", headers[i].content);
+		fclose(rstream);
+		free(buf);
 	}
 	
 	FILE *wstream = fopen("./initrd.img", "w");
 	unsigned char *data = (unsigned char *)malloc(off);
 	fwrite(&nheaders, sizeof(int), 1, wstream);
 	fwrite(headers, sizeof(struct initrd_header), 64, wstream);
-	
-	for(i = 0; i < nheaders; i++)
-	{
-		FILE *stream = fopen(argv[i*2+1], "r");
-		unsigned char *buf = (unsigned char *)malloc(headers[i].length);
-		fread(buf, 1, headers[i].length, stream);
-		fwrite(buf, 1, headers[i].length, wstream);
-		fclose(stream);
-		free(buf);
-	}
 	
 	fclose(wstream);
 	free(data);
