@@ -15,76 +15,94 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 */
 use crate::commands::{blank, hello_world, startfs, clock, user, lspci, help, test_mem};
 use crate::screen::WRITER;
+use alloc::string::String;
+use alloc::prelude::ToString;
+use core::ptr;
+use lazy_static::lazy_static;
+use spin::Mutex;
 
+#[derive(Clone)]
 pub struct Input{
 	pub actived: bool,
-	pub content: [char; 30],
-	pub number: usize,
+	pub content: String,
 }
 
-pub static mut input: Input = Input{
-	actived: true,
-	content: [' '; 30],
-	number: 0,
-};
+#[derive(Clone)]
+pub struct Command{
+    pub cmd: String,
+    pub function: fn(cmd: String),
+}
 
-pub fn cmd_character(c: char){
+lazy_static! {
+    pub static ref INPUT: Mutex<Input> = Mutex::new(Input {
+        actived: true,
+		content: "".to_string(),
+    });
+}
+
+pub unsafe fn cmd_character(c: char){
 	unsafe{
-		if input.actived == true{
+		if INPUT.lock().actived == true{
 			//If enter is pressed exec the function
 			if c == '\n'{
-				input.actived = false;
-				detectcmd(input.content);
+				//Block the input
+				INPUT.lock().actived = false;
+				
+				//Do the command
+				detectcmd(INPUT.lock().content.clone());
+				
+				//Show the prompt
 				WRITER.lock().new_line();
 				print!("Anix>");
-				input.content = [' '; 30];
-				input.number = 0;
-				input.actived = true;
+				
+				//Clear the buffer
+				INPUT.lock().content = "".to_string();
+				
+				//Reactivate input
+				INPUT.lock().actived = true;
 			}
 			else{
 				print!("{}", c);
-				input.content[input.number] = c;
-				input.number += 1;
+				INPUT.lock().content.push(c);
 			}
 		}
 	}
 }
 
-pub fn cmd_number(n: pc_keyboard::KeyCode){
+pub unsafe fn cmd_number(n: pc_keyboard::KeyCode){
 	unsafe{
-		if input.actived == true{
+		if INPUT.lock().actived == true{
 			print!("{:?}", n);
-			input.content[input.number] = n as u8 as char;
-			input.number += 1;
+			INPUT.lock().content.push(n as u8 as char);
 		}
 	}
 }
 
-static commands: [Command; 8] = [
-	Command{cmd: [' ';30], function: blank},
-	Command{cmd: ['h', 'e', 'l', 'l', 'o', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: hello_world},
-	Command{cmd: ['f', 's', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: startfs},
-	Command{cmd: ['t', 'i', 'm', 'e', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: clock},
-	Command{cmd: ['u', 's', 'e', 'r', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: user},
-	Command{cmd: ['l', 's', 'p', 'c', 'i', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: lspci},
-	Command{cmd: ['h', 'e', 'l', 'p', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: help},
-	Command{cmd: ['m', 'e', 'm', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: test_mem},
-];
-
-pub struct Command{
-    pub cmd: [char; 30],
-    pub function: fn(cmd: [char; 30]),
-}
-
 ///Function for detect command and exec it
-pub fn detectcmd(cmd: [char; 30]){
-    //TODO: Pass parameters (split the array with spaces)
+pub unsafe fn detectcmd(cmd: String){
+	//TODO: Use Vec instead of Array
+	let commands = [
+		Command{cmd: "hello".to_string(), function: hello_world},
+		Command{cmd: "fs".to_string(), function: startfs},
+		Command{cmd: "time".to_string(), function: clock},
+		Command{cmd: "user".to_string(), function: user},
+		Command{cmd: "lspci".to_string(), function: lspci},
+		Command{cmd: "help".to_string(), function: help},
+		Command{cmd: "mem".to_string(), function: test_mem},
+	];
+
     let mut commandIsExec = false;
     
-    ///Find the function among the array of functions
+    //Find the function in the array of functions
     for c in commands.iter(){
-		if cmd == c.cmd{
-			(c.function)(cmd);
+		//If the command selected is the same as the input
+		if string_to_str(cmd.clone()).starts_with(string_to_str(c.cmd.clone())){
+			//Call the function
+			
+			//TODO: Decomment this when we can kill tasks
+			//let cmd_task = Task::new(c.cmd.clone(), (c.function) as *const () as u32);
+			(c.function)(cmd.clone());
+			//cmd_task.kill();
 			commandIsExec = true;
 		}
     }
@@ -93,4 +111,9 @@ pub fn detectcmd(cmd: [char; 30]){
     if commandIsExec == false{
 		print!("\nUnknown command: {:?}", cmd);
     }
+}
+
+fn string_to_str(s: String) -> &'static str {
+	use alloc::boxed::Box;
+    Box::leak(s.into_boxed_str())
 }

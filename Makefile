@@ -58,6 +58,8 @@ endif
 	#WARNING: If you are running this script for the first time
 	#	-Create a msdos label on your partition: run ´sudo parted /dev/sdb mklabel msdos´ or use Gparted (Partition->New->Msdos)
 	#	-Format the partition in ext2: run ´sudo mkfs.ext2 /dev/sdb1´ or use Gparted (Click on the partition->Format in->Ext2)
+	#	-If there is an error with #![feature(try_from)] and x86_64 crate it is normal! Add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
+	
 all: msg clear compile convert link grub-config initrd test-errors mount copy umount set-bootable
 
 msg:
@@ -82,7 +84,7 @@ convert:
 
 link:
 	#Link all files
-	ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/long_mode_init.o lib/relibc/*.a src/output/C/*.o src/output/libAnix.a -nostdlib --allow-multiple-definition -m elf_x86_64 -error-limit=0
+	ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/long_mode_init.o src/output/task.o src/output/C/*.o src/output/libAnix.a -nostdlib --allow-multiple-definition -m elf_x86_64 -error-limit=0 -T src/arch/x86_64/linker.ld
 
 grub-config:
 	#Create grub config file
@@ -108,10 +110,10 @@ mount:
 
 copy:
 	#Copy files in device
-	sudo mkdir -p build/root/boot/grub
+	sudo mkdir -p build/root/boot/grub/themes/breeze
 	sudo cp -r src/files/* build/root/
-	sudo cp -r src/grub/themes/* build/root/boot/grub/themes/
 	sudo grub-install $(USBPORT) --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose > "grub_log.txt" 2>&1
+	sudo cp -r src/grub/themes/breeze/* build/root/boot/grub/themes/breeze
 	sudo cp src/grub/grub.cfg build/root/boot/grub/grub.cfg
 	sudo cp build/initrd.img build/root/boot/initrd.img
 

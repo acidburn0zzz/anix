@@ -1,7 +1,7 @@
 . mk/colors.sh
 #Compile assembly code
-for asm in $(ls src/asm | grep .asm) ; do
-	nasm -f elf64 src/asm/$asm -o src/output/${asm%.asm}.o
+for asm in $(ls src/arch/x86_64/asm | grep .asm) ; do
+	nasm -f elf64 src/arch/x86_64/asm/$asm -o src/output/${asm%.asm}.o
 done
 
 #@input: path

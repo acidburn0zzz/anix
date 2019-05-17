@@ -18,8 +18,7 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 #include "registry.c"
 #include "../lib.h"
 
-static void PciVisit(uint bus, uint dev, uint func)
-{
+u32 PciVisit(uint bus, uint dev, uint func){
     uint id = PCI_MAKE_ID(bus, dev, func);
 
     PciDeviceInfo info;
@@ -34,12 +33,16 @@ static void PciVisit(uint bus, uint dev, uint func)
     info.subclass = PciRead8(id, PCI_CONFIG_SUBCLASS);
     info.classCode = PciRead8(id, PCI_CONFIG_CLASS_CODE);
 	
-    printk("Found a %s with id: %d\n", PciClassName(info.classCode, info.subclass, info.progIntf), info.deviceId);
+	if((func + dev + bus) % 3 == 0){
+		printk("\n");
+	}
+	printk("%s (id = %d)  ", PciClassName(info.classCode, info.subclass, info.progIntf), info.deviceId);
+	return 0;
 }
 
-void PciInit()
-{
-    printk("PCI Initialization\n");
+u32 PciProbePort(){
+	u32 visit = 0;
+    printk("\nPCI Initialization\n");
     for (uint bus = 0; bus < 256; ++bus)
     {
         for (uint dev = 0; dev < 32; ++dev)
@@ -50,10 +53,14 @@ void PciInit()
 
             for (uint func = 0; func < funcCount; ++func)
             {
-                PciVisit(bus, dev, func);
+                visit = PciVisit(bus, dev, func);
+				/*if(visit != 0){
+					return visit;
+				}*/
             }
         }
     }
+    return 0;
 }
 
 

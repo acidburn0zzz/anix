@@ -26,8 +26,8 @@ _start:
     call check_cpuid
     call check_long_mode
     
-    call set_up_page_tables ; new
-    call enable_paging     ; new
+    call set_up_page_tables
+    call enable_paging
 
     ; load the 64-bit GDT
     lgdt [gdt64.pointer]
@@ -167,13 +167,13 @@ gdt64:
     dq gdt64
 
 section .bss
-align 65536
+align 4096
 p4_table:
-    resb 65536
+    resb 4096
 p3_table:
-    resb 65536
+    resb 4096
 p2_table:
-    resb 65536
+    resb 4096
 stack_bottom:
-    resb 65536
+    resb 4096 * 4
 stack_top:

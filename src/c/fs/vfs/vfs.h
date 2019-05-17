@@ -60,7 +60,7 @@ typedef struct fs_node
 struct dirent
 {
     char name[128]; // Filename.
-    u32 ino;     // Inode number. Required by POSIX.
+    u32 inode;     // Inode number. Required by POSIX.
 };
 
 extern fs_node_t *fs_root; // The root of the filesystem.

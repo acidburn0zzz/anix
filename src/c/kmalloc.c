@@ -20,6 +20,46 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 
 u32 kmalloc_used = 0;
 
+char* get_page_frame(void)
+{
+	int byte, bit;
+	int page = -1;
+
+	for (byte = 0; byte < RAM_MAXPAGE / 8; byte++)
+		if (mem_bitmap[byte] != 0xFF)
+			for (bit = 0; bit < 8; bit++)
+				if (!(mem_bitmap[byte] & (1 << bit))) {
+					page = 8 * byte + bit;
+					set_page_frame_used(page);
+					return (char *) (page * PAGESIZE);
+				}
+	return (char *) -1;
+}
+
+int pd0_add_page(char *v_addr, char *p_addr, int flags)
+{
+	u32 *pde;
+	u32 *pte;
+
+	if (v_addr > (char *) USER_OFFSET) {
+		printk("ERROR: pd0_add_page(): %p is not in kernel space !\n", v_addr);
+		return 0;
+	}
+
+	/* On verifie que la table de page est bien presente */
+	pde = (u32 *) (0xFFFFF000 | (((u32) v_addr & 0xFFC00000) >> 20));
+	if ((*pde & PG_PRESENT) == 0) {
+		printk("PANIC: pd0_add_page(): kernel page table not found for v_addr %p. System halted !\n", v_addr);
+		asm("hlt");
+	}
+
+	/* Modification de l'entree dans la table de page */
+	pte = (u32 *) (0xFFC00000 | (((u32) v_addr & 0xFFFFF000) >> 10));
+	*pte = ((u32) p_addr) | (PG_PRESENT | PG_WRITE | flags);
+
+	return 0;
+}
+
 void *ksbrk(int n)
 {
 	struct kmalloc_header *chunk;

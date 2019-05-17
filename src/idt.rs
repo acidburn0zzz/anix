@@ -23,7 +23,7 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 use crate::{gdt, print, println, irq::irq::*, irq::exceptions::*, irq::irqid::*};
 use pic8259_simple::ChainedPics;
 use spin;
-use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable};
+use x86_64::structures::idt::{InterruptStackFrame, InterruptDescriptorTable};
 use x86_64::PrivilegeLevel::Ring3;
 use lazy_static::lazy_static;
 
@@ -36,7 +36,7 @@ lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         
-        ///Exceptions
+        //Exceptions
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt.divide_by_zero.set_handler_fn(divide_by_zero_handler);
         idt.debug.set_handler_fn(debug_handler);
@@ -60,7 +60,7 @@ lazy_static! {
         idt.virtualization.set_handler_fn(virtualization_handler);
         idt.security_exception.set_handler_fn(security_exception_handler);
         
-        //Irq
+        //Interrupts
         idt[usize::from(TIMER_ID)].set_handler_fn(timer_interrupt_handler);
         idt[usize::from(KEYBOARD_ID)].set_handler_fn(keyboard_interrupt_handler);
         

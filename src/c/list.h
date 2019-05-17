@@ -13,63 +13,30 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+#include "types.h"
 
-#ifndef __LIST__
-#define __LIST__
+#ifndef _LIST_H_
+#define _LIST_H_
 
+#define LIST_MAGIC  0xC0FFBABE
 
-struct list_head {
-	struct list_head *next, *prev;
-};
+typedef struct list {
 
-#define LIST_HEAD_INIT(name) { &(name), &(name) }
+  uint32_t  magic;
+  void*     data;
 
-#define LIST_HEAD(name) \
-	struct list_head name = LIST_HEAD_INIT(name)
+  struct list* next;
+} list_t;
 
-static inline void INIT_LIST_HEAD(struct list_head *list)
-{
-	list->next = list;
-	list->prev = list;
-}
+typedef uint8_t (*list_iterator_t)(list_t* l, void* udata);
 
-static inline void list_add(struct list_head *new, struct list_head *head)
-{
-	new->next = head->next;
-	new->prev = head;
-	head->next->prev = new;
-	head->next = new;
-}
+list_t*
+list_add(list_t* l, void* data);
 
-static inline void list_del(struct list_head *p)
-{
-	p->next->prev = p->prev;
-	p->prev->next = p->next;
-	p->next = 0;
-	p->prev = 0;
-}
+list_t*
+list_get(list_t* l, uint32_t idx);
 
-static inline int list_empty(const struct list_head *head)
-{
-	return head->next == head;
-}
+list_t*
+list_foreach(list_t* l, list_iterator_t it, void* udata);
 
-#define list_entry(ptr, type, member) \
-	(type*) ((char*) ptr - (char*) &((type*)0)->member)
-
-#define list_first_entry(head, type, member) \
-	list_entry((head)->next, type, member)
-
-#define list_for_each(p, head) \
-	for (p = (head)->next; p != (head); p = p->next) 
-
-#define list_for_each_safe(p, n, head) \
-	for (p = (head)->next, n = p->next; p != (head); p = n, n = n->next) 
-
-#define list_for_each_entry(p, head, member)				\
-	for (p = list_entry((head)->next, typeof(*p), member);		\
-	     &p->member != (head);					\
-	     p = list_entry(p->member.next, typeof(*p), member))	\
-
-
-#endif	/* __LIST__ */
+#endif

@@ -1,6 +1,11 @@
+pub mod temporary_page;
+pub mod mapper;
 use super::PAGE_SIZE;
 use super::Frame;
 use bitflags::bitflags;
+use self::temporary_page::TemporaryPage;
+use memory::table::ActivePageTable;
+use multiboot2::ElfSection;
 
 pub const ENTRY_COUNT: usize = 512;
 
@@ -22,8 +27,35 @@ bitflags! {
     }
 }
 
+impl EntryFlags {
+    pub fn from_elf_section_flags(section: &ElfSection) -> EntryFlags {
+        use multiboot2::{ELF_SECTION_ALLOCATED, ELF_SECTION_WRITABLE,
+            ELF_SECTION_EXECUTABLE};
+
+        let mut flags = EntryFlags::empty();
+
+        if section.flags().contains(ELF_SECTION_ALLOCATED) {
+            // section is loaded to memory
+            flags = flags | EntryFlags::PRESENT;
+        }
+        if section.flags().contains(ELF_SECTION_WRITABLE) {
+            flags = flags | EntryFlags::WRITABLE;
+        }
+        if !section.flags().contains(ELF_SECTION_EXECUTABLE) {
+            flags = flags | EntryFlags::NO_EXECUTE;
+        }
+
+        flags
+    }
+}
+
+pub struct InactivePageTable {
+    pub p4_frame: Frame,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Page {
-   number: usize,
+   pub number: usize,
 }
 
 pub struct Entry(u64);
@@ -79,4 +111,48 @@ impl Page{
 	pub fn p1_index(&self) -> usize {
 		(self.number >> 0) & 0o777
 	}
+	pub fn range_inclusive(start: Page, end: Page) -> PageIter {
+        PageIter {
+            start: start,
+            end: end,
+        }
+    }
+}
+
+pub struct PageIter {
+    start: Page,
+    end: Page,
+}
+
+impl Iterator for PageIter {
+    type Item = Page;
+
+    fn next(&mut self) -> Option<Page> {
+        if self.start <= self.end {
+            let page = self.start;
+            self.start.number += 1;
+            Some(page)
+        } else {
+            None
+        }
+    }
+}
+
+impl InactivePageTable {
+    pub fn new(frame: Frame,
+               active_table: &mut ActivePageTable,
+               temporary_page: &mut TemporaryPage)
+               -> InactivePageTable {
+        {
+            let table = temporary_page.map_table_frame(frame.clone(),
+                active_table);
+            // now we are able to zero the table
+            table.zero();
+            // set up recursive mapping for the table
+            table[511].set(frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE);
+        }
+        temporary_page.unmap(active_table);
+
+        InactivePageTable { p4_frame: frame }
+    }
 }

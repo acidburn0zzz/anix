@@ -21,9 +21,7 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 #include "pci/registry.h"
 #include "pci/pci.c"
 
-#include "fs/ext2/ext2.h"
 #include "disk/disk.c"
-#include "file/file.h"
 
 #include "fs/initrd/initrd.c"
 #include "fs/initrd/initrd.h"
@@ -70,6 +68,8 @@ void test_fs(int row, int col, int color){
 		i++;
 	}
 	
+	printk("\n--------INITRD SUCCESS!---------");
+	
 	/*
 	//TODO: Ext2 file management
 	struct partition *p1;
@@ -88,13 +88,25 @@ void test_fs(int row, int col, int color){
 	print_inode(root->inode);*/
 }
 
-void lspci(int row, int col, int color){
+u32 lspci(int row, int col, int color){
+	u32 result = 0;
 	kattr = color;
 	kX = col;
 	kY = row;
-	PciInit();
+	result = PciProbePort();
+	return result;
 }
 
 void set_initrd_addr_start(u32 addr){
 	initrd_start = addr;
+}
+
+u32 left_shift(u32 number1, u32 number2){
+	return number1 << number2;
+}
+u32 right_shift(u32 number1, u32 number2){
+	return number1 >> number2;
+}
+u8 count_func(u8 header){
+	return header & 0x80 ? 8 : 1;
 }

@@ -13,27 +13,45 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+ 
 #![no_std]
-#![allow(unused_imports)]
-#![allow(exceeding_bitshifts)]
+#![feature(unsize,coerce_unsized)]	// For DST smart pointers
+#![feature(core_intrinsics)]	// Intrinsics
+#![feature(box_syntax)]	// Enables 'box' syntax
+#![feature(box_patterns)]	// Used in boxed::unwrap
+#![feature(thread_local)]	// Allows use of thread_local
+#![feature(lang_items)]	// Allow definition of lang_items
+#![feature(asm)]	// Enables the asm! syntax extension
+#![feature(optin_builtin_traits)]	// Negative impls
+#![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
+#![feature(linkage)]	// allows using #[linkage="external"]
+#![feature(const_fn)]	// Allows defining `const fn`
 #![feature(abi_x86_interrupt)]
 #![feature(uniform_paths)]
 #![feature(type_ascription)]
-#![feature(asm)]
-#![feature(thread_local)]
 #![feature(naked_functions)]
 #![feature(rustc_private)]
 #![feature(c_void_variant)]
 #![feature(range_contains)]
 #![feature(ptr_internals)]
+#![feature(global_asm)]
+#![feature(custom_attribute)]
+#![feature(dropck_eyepatch)]
+#![feature(panic_info_message)]
+#![feature(allocator_api)]
+#![feature(alloc_error_handler)]
+#![feature(alloc)] // The alloc crate is still unstable
 
-
+#![allow(unused_imports)]
+#![allow(exceeding_bitshifts)]
 //Imports
 
 //Crates
 #[macro_use]
+extern crate alloc;
+#[macro_use]
 extern crate spin;
-extern crate x86_64;
+extern crate x86_64; //WARNING: You must add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
 extern crate lazy_static;
 extern crate volatile;
 extern crate pic8259_simple;
@@ -41,7 +59,10 @@ extern crate pc_keyboard;
 extern crate uart_16550;
 extern crate x86;
 extern crate bitflags;
+extern crate rlibc;
 extern crate multiboot2;
+#[macro_use]
+extern crate once;
 
 //Modules
 #[macro_use]
@@ -54,8 +75,11 @@ pub mod commands; //Commands for input (for add a command, see the header of com
 pub mod user; //User functionnalities (TODO)
 pub mod common; //Common functions
 pub mod irq; //Interrupts management
-pub mod scheduler; //Loop function for tasks management (TODO)
 pub mod memory; //Memory management
+pub mod task; //Tasks management
+pub mod errors; //Errors
+pub mod pci; //Pci management (TODO)
+pub mod disk; //Disk read and write (support ide (not tested) and sata)
 
 use core::panic::PanicInfo;
 use idt::PICS;
@@ -67,7 +91,14 @@ use memory::{Frame, FrameAllocator};
 use memory::table::ActivePageTable;
 use spin::Mutex;
 use lazy_static::lazy_static;
+use task::*;
+use memory::heap::{HEAP_START, HEAP_SIZE, BumpAllocator};
+use core::alloc::GlobalAlloc;
+use alloc::alloc::Layout;
 
+#[global_allocator]
+static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
+    
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
 #[no_mangle] // don't mangle the name of this function
@@ -75,34 +106,12 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     screen::logo_screen();
     
     println!("Welcome!\nAnix is starting...");
-    let boot_info = unsafe{ multiboot2::load(multiboot_information_address) };
-	let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
-
-	println!("Memory areas:");
-	for area in memory_map_tag.memory_areas() {
-		println!("    start: 0x{:x}, length: 0x{:x}", area.base_addr, area.length);
-	}
-	
-	let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf-sections tag required");
-
-	println!("Kernel sections:");
-	for section in elf_sections_tag.sections() {
-		println!("    addr: 0x{:x}, size: 0x{:x}, flags: 0x{:x}",
-        section.addr, section.size, section.flags);
-	}
-	
-	let kernel_start = elf_sections_tag.sections().map(|s| s.addr).min().unwrap();
-	let kernel_end = elf_sections_tag.sections().map(|s| s.addr + s.size).max().unwrap();
-	
-    let multiboot_start = multiboot_information_address;
-	let multiboot_end = multiboot_start + (boot_info.total_size as usize);
+    let boot_info = unsafe {
+        multiboot2::load(multiboot_information_address)
+    };
 	
 	let initrd_start = boot_info.module_tags().next().unwrap().start_address();
 	let initrd_end = boot_info.module_tags().next().unwrap().end_address();
-	
-	println!("Kernel\n   start: {}\n   end: {}", kernel_start, kernel_end);
-    println!("\nMultiboot\n   start: {}\n   end: {}", multiboot_start, multiboot_end);
-    println!("\nInitrd\n   start: {}\n   end: {}", initrd_start, initrd_end);
     
     unsafe{
 		print!("\nDEBUG: init GDT");
@@ -119,25 +128,31 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     unsafe { PICS.lock().initialize() };
     ok();
     
-    print!("\nDEBUG: enable interrupts");
-    x86_64::instructions::interrupts::enable();
+    print!("\nDEBUG: Init memory");
+    enable_nxe_bit();
+	enable_write_protect_bit();
+    memory::init(boot_info);
     ok();
-    
-    print!("\nDEBUG: Start allocator system");
-    let mut ALLOCATOR = memory::AreaFrameAllocator::new(kernel_start as usize, kernel_end as usize, multiboot_start, multiboot_end, memory_map_tag.memory_areas());
-	ok();
 	
-	for i in 0.. {
-		if let None = ALLOCATOR.allocate_frame() {
-			println!("\nAllocated {} frames", i);
-			break;
-		}
-	}
-	
+	print!("\nDEBUG: set initrd start");
 	unsafe{
 		set_initrd_addr_start(initrd_start);
 	}
+	ok();
+    
+	print!("\nDEBUG: Start tasking system");
 	
+	unsafe{
+		Task::new("system", system as *const () as u32);
+		
+		TASK_RUNNING = CURRENT_TASKS[0];
+	}
+	ok();
+	
+	print!("\nDEBUG: enable interrupts");
+    x86_64::instructions::interrupts::enable();
+    ok();
+
 	print!("\nAnix>");
     
     hlt_loop();
@@ -149,6 +164,33 @@ extern "C"{
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-	print!("\nPANIC\nInfo:\n{:#?}", info);
+	print!("\n{:#?}", info);
 	hlt_loop();
+}
+#[alloc_error_handler]
+fn handle_alloc_error(layout: Layout) -> !{
+	print!("\n{:#?}", layout);
+	hlt_loop();
+}
+
+static mut increment_test: u32 = 0;
+
+fn system(){
+	
+}
+
+fn enable_nxe_bit() {
+    use x86::msr::{IA32_EFER, rdmsr, wrmsr};
+
+    let nxe_bit = 1 << 11;
+    unsafe {
+        let efer = rdmsr(IA32_EFER);
+        wrmsr(IA32_EFER, efer | nxe_bit);
+    }
+}
+
+fn enable_write_protect_bit() {
+    use x86::controlregs::{cr0, cr0_write, Cr0};
+
+    unsafe { cr0_write(cr0() | Cr0::CR0_WRITE_PROTECT) };
 }

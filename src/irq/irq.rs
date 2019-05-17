@@ -33,10 +33,10 @@ pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut Interru
 			time.deciseconds = 0;
 		}
 		
-	}
-	
-	schedule();
-    unsafe{PICS.lock().notify_end_of_interrupt(TIMER_ID)}
+		//Call the schedule function for switching task
+		schedule();
+		PICS.lock().notify_end_of_interrupt(TIMER_ID)
+    }
 }
 
 pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
@@ -52,17 +52,17 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
     }
 
     let mut keyboard = KEYBOARD.lock();
-    let port = Port::new(0x60);
+    let mut port = Port::new(0x60);
 
     let scancode: u8 = unsafe { port.read() };
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
-					cmd_character(character);
+					unsafe{cmd_character(character)};
                 },
                 DecodedKey::RawKey(key) => {
-					cmd_number(key);
+					unsafe{cmd_number(key)};
 				},
 			}
 		}
@@ -70,89 +70,89 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
 	unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }
 } 
 pub extern "x86-interrupt" fn cascade_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Cascade\n{:#?}", stack_frame);
+    print!("\n\nCascade\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(CASCADE_ID) }
 }
 
 pub extern "x86-interrupt" fn com1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Com1\n{:#?}", stack_frame);
+    print!("\nCom1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(COM1_ID) }
 }
 
 pub extern "x86-interrupt" fn com2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Com2\n{:#?}", stack_frame);
+    print!("\nCom2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(COM2_ID) }
 }
 
 pub extern "x86-interrupt" fn lpt1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Lpt1\n{:#?}", stack_frame);
+    print!("\nLpt1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(LPT1_ID) }
 }
 
 pub extern "x86-interrupt" fn floppy_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Floppy\n{:#?}", stack_frame);
+    print!("\nFloppy\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(FLOPPY_ID) }
 }
 
 pub extern "x86-interrupt" fn lpt2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("Lpt2\n{:#?}", stack_frame);
+    print!("\nLpt2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(LPT2_ID) }
 }
 
 pub extern "x86-interrupt" fn rtc_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("RTC\n{:#?}", stack_frame);
+    print!("\nRTC\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(RTC_ID) }
 }
 
 pub extern "x86-interrupt" fn pci1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("PIC1\n{:#?}", stack_frame);
+    print!("\nPIC1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI1_ID) }
 }
 
 pub extern "x86-interrupt" fn pci2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("PIC2\n{:#?}", stack_frame);
+    print!("\nPIC2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI2_ID) }
 }
 
 pub extern "x86-interrupt" fn pci3_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("PIC3\n{:#?}", stack_frame);
+    print!("\nPIC3\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI3_ID) }
 }
 
 pub extern "x86-interrupt" fn mouse_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("MOUSE\n{:#?}", stack_frame);
+    print!("\nMOUSE\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(MOUSE_ID) }
 }
 
 pub extern "x86-interrupt" fn fpu_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("FPU\n{:#?}", stack_frame);
+    print!("\nFPU\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(FPU_ID) }
 }
 
 pub extern "x86-interrupt" fn ata1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("ATA1\n{:#?}", stack_frame);
+    print!("\nATA1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(ATA1_ID) }
 }
 
 pub extern "x86-interrupt" fn ata2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("ATA2\n{:#?}", stack_frame);
+    print!("\nATA2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(ATA2_ID) }
 }
 
 pub extern "x86-interrupt" fn disk_primary_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("DISK PRIMARY\n{:#?}", stack_frame);
+    print!("\nDISK PRIMARY\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(DISK_PRIMARY_ID) }
 }
 
 pub extern "x86-interrupt" fn disk_secondary_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("DISK SECONDARY\n{:#?}", stack_frame);
+    print!("\nDISK SECONDARY\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(DISK_SECONDARY_ID) }
 }
 
 pub extern "x86-interrupt" fn syscall_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nSYSCALL\n{:#?}", stack_frame);
+    print!("\n\nSYSCALL\n{:#?}", stack_frame);
     unsafe{do_syscall();}
-    print!("END OF SYSCALL");
+    print!("\nEND OF SYSCALL");
     unsafe { PICS.lock().notify_end_of_interrupt(SYSCALL_ID) }
     //TODO: Manage syscalls
 }
