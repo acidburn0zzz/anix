@@ -1,722 +1,436 @@
-//TODO: Use ArrayVec
+/* TODO: Copy and paste from https://stackoverflow.com/questions/11739979/ahci-driver-for-own-os
+ * For each port supported, switch high bit PxCMD.SUD //DON'T DO
+ * Poll on PxSSTS (Page 36) to check the state of the PHY //DON'T DO
+ * Check PxSIG -> It means that the first FIS was sent and all are good!!! //DO
+ * Print PxCMD.FRE (it must be 0)
+ */
 use super::hw;
-/*use std::mem::aref::ArefBorrow;
-use std::vec::Vec;
-use std::string::String;
-*/
-use spin::Mutex;
-use core::fmt::Debug;
-use core::fmt;
-use core::sync::atomic::AtomicU32;
-use super::storage;
-use memory::alloc::*;
-use x86::io::*;
-use crate::memory::PAGE_SIZE;
-use memory::table;
-use core::convert::AsRef;
-use crate::ALLOCATOR;
-use core::alloc::Layout;
-use core::alloc::GlobalAlloc;
+use core::ptr::read_volatile;
+use alloc::prelude::String;
+use super::driver::{CURRENT_SATA_DEVICE, SATA_DEVICES};
 
-enum Error
+/// This constant value is used to rebase ports
+pub const AHCI_BASE: u64 = 0x400000; // 4M
+
+const SATA_READ_DMA: u8 = 0xC8;
+const SATA_WRITE_DMA: u8 = 0xCA;
+const SATA_READ_DMA_EXT: u8 = 0x25;
+const SATA_WRITE_DMA_EXT: u8 = 0x35;
+
+/// Mutable/Immutable data pointer, encoded as host-relative (Send = immutable data)
+#[derive(Clone, Copy)]
+pub enum DataPtr<'a>
 {
-	Ata { err: u8, sts: u8 },
-	//Atapi { sense_key: ::storage_scsi::proto::SenseKey, eom: bool, ili: bool },
-	Bus,
+    Send(&'a [u8]),
+    Recv(&'a &'a mut [u8]),
 }
-impl Debug for Error{
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self{
-			&Error::Ata { err, sts } => write!(f, "Ata(sts={:02x} err={:#x}{})", sts, err, if err & (1 << 2) != 0 { " ABRT" } else { "" }),
-			//&Error::Atapi { sense_key, eom, ili } => write!(f, "Atapi(sense_key={:?},eom={},ili={})", sense_key, eom, ili),
-			&Error::Bus => write!(f, "Bus"),
-		}
-	}
+impl<'a> DataPtr<'a> {
+    pub fn as_slice(&self) -> &[u8] {
+        match self{
+            &DataPtr::Send(p) => p,
+            &DataPtr::Recv(ref p) => p,
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+    pub fn is_send(&self) -> bool {
+        match self{
+            &DataPtr::Send(_) => true,
+            &DataPtr::Recv(_) => false,
+        }
+    }
 }
-
-pub struct Port
-{
-	//name: ArrayString::<[u8; 20]>,
-	pub index: usize,
-	//ctrlr: ArefBorrow<::controller::ControllerInner>,
-	max_commands: usize,
-	volume: Mutex<Option<storage::Volume>>,
-	
-	// Hardware allocations:
-	// - 1KB (<32*32 bytes) for the command list
-	// - 256 bytes of Received FIS
-	// - <16KB (32*256 bytes) of command tables
-	// Contains the "Command List" (a 1KB aligned block of memory containing commands)
-	command_list_alloc: AllocHandle,
-	command_tables: [AllocHandle; 4],
-
-	//command_events: Vec<::kernel::sync::EventChannel>,
-
-	//used_commands_sem: ::kernel::sync::Semaphore,
-	used_commands: AtomicU32,
+impl<'a> core::fmt::Debug for DataPtr<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self{
+            &DataPtr::Send(p) => write!(f, "Send({:p}+{})", p.as_ptr(), p.len()),
+            &DataPtr::Recv(ref p) => write!(f, "Recv(mut {:p}+{})", p.as_ptr(), p.len()),
+        }
+    }
 }
 
-
-pub struct PortRegs
-{
-	id: usize,
+#[derive(Copy, Clone, Debug)]
+pub enum DeviceType{
+    SATA = 0x101,
+    SATAPI = 0xeb140101, //TODO: Change this to 32 bits
+    OTHER = 0,
+    NOT_PRESENT = 1,
 }
 
-impl PortRegs{
-	pub fn new(port_id: usize) -> Self{
-		PortRegs {
-			id: port_id,
-		}
-	}
-
-	pub fn read(&self, ofs: usize) -> u32 {
-		//TODO: Maybe use mmio?
-		unsafe { inl((hw::REG_Px + self.id * 0x80 + ofs) as u16) }
-	}
-	
-	pub unsafe fn write(&self, ofs: usize, val: u32) {
-		//TODO: Maybe use mmio?
-		outl((hw::REG_Px + self.id * 0x80 + ofs) as u16, val)
-	}
+#[derive(Copy, Clone, Debug)]
+pub struct Port{
+    pub abar: u32,
+    pub index: u32,
+    pub r#type: DeviceType,
+    pub mem: AhciMemory,
 }
 
-// Maximum number of commands before a single page can't be shared
-const MAX_COMMANDS_FOR_SHARE: usize = (crate::memory::PAGE_SIZE - 256) / (256 + 32);
-const CMDS_PER_PAGE: usize = crate::memory::PAGE_SIZE / 0x100;
+#[derive(Copy, Clone, Debug)]
+pub struct AhciMemory{
+    pub idx: u32,
+    pub base: u32,
+}
 
+impl AhciMemory{
+    pub fn new(base: u32, idx: u32) -> Self{
+        Self{
+            idx: idx,
+            base: base,
+        }
+    }
 
-impl ::core::fmt::Display for Port
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
-	{
-		write!(f, "AHCI ? Port {}", self.index)
-	}
+    pub fn read_value(&self, addr: u32) -> u32{
+        let q = (self.base + addr) as *const u32;
+        let r = q as u32;
+        unsafe{
+            *(r as *const u32)
+        }
+    }
+
+    pub fn write_value(&self, addr: u32, value: u64){
+        let q = (self.base + addr) as *mut u64;
+        let mut r = q as u64;
+        unsafe{
+            *(r as *mut u64) = value;
+        }
+    }
+
+    /// Read a register of the port
+    pub fn read_reg(&self, reg: u32) -> u32{
+        // To compute address, see https:// www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf#page=30
+        self.read_value(hw::REG_Px + self.idx * 0x80 as u32 + reg)
+    }
+
+    /// Write a register of the port
+    pub fn write_reg(&self, reg: u32, value: u64){
+        // To compute address, see https:// www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf#page=30
+        self.write_value(hw::REG_Px + self.idx * 0x80 as u32 + reg, value);
+    }
 }
 
 impl Port{
-	pub unsafe fn new(controller: super::controller::ControllerInner, id: usize, max_commands: usize) -> Result<Port, usize>{
-		use core::mem::size_of;
-		
-		let (cl_page, cmdtab_pages) = Self::allocate_memory(&controller).unwrap();
+    pub unsafe fn new(abar: u32, idx: u32) -> Result<Port, crate::drivers::DriverBindError>{
+        assert!(idx < 32);
+        let memory = AhciMemory::new(abar, idx);
+        // TODO: test if sata is supported: if read_value(hw::REG_GHC) == GHC_AE
 
-	
-		let regs = PortRegs::new(id);
-		
-		let page = table::ActivePageTable::new();
-		
-		let addr = page.translate(cl_page.as_ref::<()>(0) as usize).unwrap();
-		regs.write(hw::REG_PxCLB , (addr >>  0) as u32);
-		regs.write(hw::REG_PxCLBU, (addr >> 32) as u32);
-		
-		let addr = page.translate(cl_page.as_ref::<hw::RcvdFis>(PAGE_SIZE - size_of::<hw::RcvdFis>()) as usize).unwrap();
-		regs.write(hw::REG_PxFB , (addr >>  0) as u32);
-		regs.write(hw::REG_PxFBU, (addr >> 32) as u32);
+        // See https:// wiki.osdev.org/AHCI#Detect_attached_SATA_devices
+        // Is the device present?
+        if memory.read_reg(hw::REG_PxSSTS) & 0x0F == 0x3{
+            let device_type = memory.read_reg(hw::REG_PxSIG);
 
-		// Clear PxACT (TODO: not really used here)
-		regs.write(hw::REG_PxSACT, 0);
-		
-		// Interrupts on
-		regs.write(hw::REG_PxSERR, 0x3FF783);
-		regs.write(hw::REG_PxIS, !0);
-		regs.write(hw::REG_PxIE, hw::PxIS_CPDS | hw::PxIS_DSS | hw::PxIS_PSS | hw::PxIS_DHRS | hw::PxIS_TFES | hw::PxIS_IFS);
-		
-		// Start command engine (Start, FIS Rx Enable)
-		let cmd = regs.read(hw::REG_PxCMD);
-		regs.write(hw::REG_PxCMD, cmd | hw::PxCMD_ST | hw::PxCMD_FRE);
+            if device_type == DeviceType::SATAPI as u32{
+                // TODO: SATAPI device
+                Ok(Port {
+                    abar: abar,
+                    index: idx,
+                    r#type: DeviceType::SATAPI,
+                    mem: memory,
+                })
+            }
+            else if device_type == DeviceType::SATA as u32{
+                memory.write_reg(hw::REG_PxSERR, 0);
+                memory.write_reg(hw::REG_PxIS, 1);
+                memory.write_reg(hw::REG_PxIE, (hw::PxIS_CPDS|hw::PxIS_DSS|
+                                hw::PxIS_PSS|hw::PxIS_DHRS|
+                                hw::PxIS_TFES|hw::PxIS_IFS) as u64);
+                memory.write_value(hw::REG_GHC, (hw::GHC_AE|hw::GHC_IE) as u64);
 
-		Ok(Port {
-			//name: ArrayString::<[u8; 20]>::from(format!("ahci?-{:?}", id) as &str).unwrap(),
-			index: id,
+                // Set Command list base (size: 0x20)
+                memory.write_reg(hw::REG_PxCLB, AHCI_BASE + (memory.idx * 0x24ff) as u64);
+                memory.write_reg(hw::REG_PxCLBU, (AHCI_BASE + (memory.idx * 0x24ff) as u64) >> 32);
 
-			volume: Mutex::new(None),
+                // Set FIS base
+                memory.write_reg(hw::REG_PxFB, AHCI_BASE + 0x400);
+                memory.write_reg(hw::REG_PxFBU, (AHCI_BASE + 0x400) >> 32);
 
-			command_list_alloc: cl_page,
-			command_tables: cmdtab_pages,
+                let new_port = Port {
+                    abar: abar,
+                    index: idx,
+                    r#type: DeviceType::SATA,
+                    mem: memory,
+                };
 
-			used_commands: AtomicU32::new(0),
-		})
-	}
-	
-	fn allocate_memory(controller: &super::controller::ControllerInner) -> Result<(AllocHandle, [AllocHandle; 4]), usize>
-	{
-		use core::mem::size_of;
-		let page = table::ActivePageTable::new();
-		let max_commands = controller.max_commands as usize;
-		let cl_size = max_commands * size_of::<hw::CmdHeader>();
+                //Add device in devices list
+                CURRENT_SATA_DEVICE = idx as usize;
+                SATA_DEVICES.push(new_port);
 
-		// Command list
-		// - Command list first (32 * max_commands)
-		// - Up to MAX_COMMANDS_FOR_SHARE in 1024 -- 4096-256
-		// - RcvdFis last
-		let cl_page = ALLOCATOR.alloc(Layout::for_value(&(64 as *mut u8)));
+                Ok(new_port)
+            }
+            else{
+                // TODO: Other devices like SEMB, PM, ...
+                // SEMB => 0xC33C0101
+                // PM => 0x96690101
+                Ok(Port {
+                    abar: abar,
+                    index: idx,
+                    r#type: DeviceType::OTHER,
+                    mem: memory,
+                })
+            }
+        }
+        else{
+            Ok(Port {
+                abar: abar,
+                index: idx,
+                r#type: DeviceType::NOT_PRESENT,
+                mem: memory,
+            })
+        }
+        /*
+        // Clear PxACT (TODO: not really used here)
+        regs.write(hw::REG_PxSACT, 0);
+        // Interrupts on
+        regs.write(hw::REG_PxSERR, 0x3FF783);
+        regs.write(hw::REG_PxIS, !0);
+        regs.write(hw::REG_PxIE, hw::PxIS_CPDS|hw::PxIS_DSS|hw::PxIS_PSS|hw::PxIS_DHRS|hw::PxIS_TFES|hw::PxIS_IFS);
+        // Start command engine (Start, FIS Rx Enable)
+        let cmd = regs.read(hw::REG_PxCMD);
+        regs.write(hw::REG_PxCMD, cmd|hw::PxCMD_ST|hw::PxCMD_FRE);
+        */
+    }
 
-		// Allocate pages for the command table
-		// TODO: Delay allocating memory until a device is detected on this port
-		let cmdtab_pages = if max_commands <= MAX_COMMANDS_FOR_SHARE {
-				// All fits in the CL page!
-				
-				// - Return empty allocations
-				Default::default()
-			}
-			else {
-				// Individual pages for the command table, but the RcvdFis and CL share
-				let mut tab_pages: [AllocHandle; 4] = Default::default();
-				let n_pages = (max_commands - MAX_COMMANDS_FOR_SHARE + CMDS_PER_PAGE-1) / CMDS_PER_PAGE;
-				assert!(n_pages < 4);
-				for i in 0 .. n_pages
-				{
-					tab_pages[i] = ALLOCATOR.alloc(Layout::for_value(&(64 as *mut u8))) as AllocHandle;
-				}
-				tab_pages
-			};
+    pub fn get_rcvd_fis(addr: u32) -> &'static mut hw::RcvdFis{
+        unsafe { &mut *(addr as *mut hw::RcvdFis) }
+    }
 
+    pub fn start_cmd(memory: AhciMemory){
+        // while Self::read_reg(hw::REG_PxCMD) == hw::PxCMD_CR{}
+        memory.write_reg(hw::REG_PxCMD, (hw::PxCMD_FRE|hw::PxCMD_ST) as u64);
+    }
 
-		// Initialise the command list and table entries
-		{
-			// SAFE: Doesn't alias, as we uniquely own cl_page, and cmdidx_to_ref should be correct.
-			let cl_ents = unsafe { cl_page.as_int_mut_slice(0, max_commands) };
-			for (listent, tabent) in Iterator::zip( cl_ents.iter_mut(), (0 .. max_commands).map(|i| Self::cmdidx_to_ref(&cl_page, cl_size, &cmdtab_pages, i)) ){
-				*listent = hw::CmdHeader::new(page.translate(tabent as usize).unwrap() as u64);
-				//*tabent = hw::CmdTable::new();
-			}
-		}
+    pub fn stop_cmd(memory: AhciMemory){
+        // Clear ST (bit0)
+        memory.write_reg(hw::REG_PxCMD, hw::PxCMD_ST as u64);
 
-		Ok( (cl_page, cmdtab_pages) )
-	}
+        // Wait until FR (bit14), CR (bit15) are cleared
+        loop{
+            if memory.read_reg(hw::REG_PxCMD) == hw::PxCMD_FR{
+                continue;
+            }
+            if memory.read_reg(hw::REG_PxCMD) == hw::PxCMD_CR{
+                continue;
+            }
+            break;
+        }
 
-	/*
-	pub fn handle_irq(&self)
-	{
-		let regs = self.regs();
+        // Clear FRE (bit4)
+        memory.write_reg(hw::REG_PxCMD, hw::PxCMD_FRE as u64);
+    }
 
-		let int_status = regs.read(hw::REG_PxIS);
-		let tfd = regs.read(hw::REG_PxTFD);
-		////log_trace!("{} - int_status={:#x}", self, int_status);
+    pub unsafe fn request_ata_lba48(&self, memory: AhciMemory, lba: u64, count: &mut u16, buf: DataPtr) -> Result<(), &'static str>{
+        use alloc::prelude::ToString;
+        use  alloc::prelude::Vec;
 
-		// Cold Port Detection Status
-		if int_status & hw::PxIS_CPDS != 0
-		{
-			log_notice!("{} - Presence change", self);
-		}
+        // Prepare buffer
+        let page = crate::memory::table::ActivePageTable::new();
+        let data = buf.as_slice().as_ptr() as usize;
+        let data_addr = page.translate(data).unwrap() as u64;
 
+        let capabilities = memory.read_value(hw::REG_CAP);
+        let supports_64bit = capabilities & hw::CAP_S64A != 0;
+        let max_commands = ((capabilities & hw::CAP_NCS) >> hw::CAP_NCS_ofs) + 1; // TODO: Put this in the Port structure
+        // println!("Max commands is: {}", max_commands);
 
-		// "Task File Error Status"
-		if int_status & hw::PxIS_TFES != 0
-		{
-			log_warning!("{} - Device pushed error: TFD={:#x}", self, tfd);
-			// TODO: This should terminate all outstanding transactions with an error.
-		}
+        Self::start_cmd(memory);
 
-		// Device->Host Register Update
-		if int_status & hw::PxIS_DHRS != 0
-		{
-			//log_trace!("{} - Device register update, RFIS={:?}", self, self.get_rcvd_fis().RFIS);
-		}
-		// PIO Setup FIS Update
-		if int_status & hw::PxIS_PSS != 0
-		{
-			//log_trace!("{} - PIO setup status update, PSFIS={:?}", self, self.get_rcvd_fis().PSFIS);
-		}
+        let cmd_slot = CommandSlot::new(memory, max_commands as usize);
 
-		if int_status & hw::PxIS_IFS != 0
-		{
-		}
+        /* println!("Command slot chosen. It is {}. So, the command header is at {:#x}. Finally, command table is at {:#x}.",
+             cmd_slot.idx, memory.read_reg(hw::REG_PxCLB + 0x20 * cmd_slot.idx),
+             AHCI_BASE + (40 << 10) as u64 + (memory.idx << 13) as u64 + (cmd_slot.idx << 8) as u64);
+        */
 
-		// Check commands
-		//if int_status & hw::PxIS_DPS != 0
-		//{
-		let issued_commands = regs.read(hw::REG_PxCI);
-		let active_commands = regs.read(hw::REG_PxSACT);
-		let used_commands = self.used_commands.load(Ordering::Relaxed);
-		////log_trace!("{} - used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}",
-		//	self, used_commands, issued_commands, active_commands);
-		for cmd in 0 .. self.ctrlr.max_commands as usize
-		{
-			let mask = 1 << cmd;
-			if used_commands & mask != 0
-			{
-				if tfd & 0x01 != 0 {
-					self.command_events[cmd].post();
-				}
-				else if issued_commands & mask == 0 || active_commands & mask == 0 {
-					self.command_events[cmd].post();
-				}
-				else {
-					// Not yet complete
-				}
-			}
-			else if active_commands & mask != 0	{
-				log_warning!("{} - Command {} active, but not used", self, cmd);
-			}
-			else {
-			}
-		}
-		//}
-	
-		// SAFE: Exclusive range, only written here
-		unsafe {
-			regs.write(hw::REG_PxIS, int_status);
-		}
-	}
+        //Build command header. See
+        //https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/serial-ata-ahci-spec-rev1-3-1.pdf
+        //(page 78)
+        let cmd_header = cmd_slot.get_cmd_header(
+            memory.read_reg(hw::REG_PxCLB + 0x20 * cmd_slot.idx)
+        ); //NOTE: Maybe, (((0 | port->clbu) << 32) | port->clb)?
+        let mut n_prdt_ents = 0;
 
-	fn get_rcvd_fis(&self) -> &hw::RcvdFis
-	{
-		self.command_list_alloc.as_ref::<hw::RcvdFis>( crate::memory::PAGE_SIZE - ::core::mem::size_of::<hw::RcvdFis>() )
-	}
+        cmd_header.prdtl = *count as u16;
+        //                    FIS + Command list
+        cmd_header.ctba = AHCI_BASE + 0x4ff + 0x100 as u64 * cmd_slot.idx as u64;
+        cmd_header.flags = hw::AHCI_FLAGS_BUSY_OK | hw::AHCI_FLAGS_2DWCMD | hw::AHCI_FLAGS_PREFETCH;
+        cmd_header.prdbc.write(0);
 
-	fn cmdidx_to_ref<'a>(cl_page: &'a AllocHandle, cl_size: usize, cmdtab_pages: &'a [AllocHandle], i: usize) -> &'a hw::CmdTable {
-		//let cl_size = max_commands * size_of::<hw::CmdHeader>();
-		let n_shared = (crate::memory::PAGE_SIZE - cl_size) / 0x100 - 1;
-		if i < n_shared {
-			&cl_page.as_slice(cl_size, n_shared)[i]
-		}
-		else {
-			let i = i - n_shared;
-			let (pg,ofs) = (i / CMDS_PER_PAGE, i % CMDS_PER_PAGE);
-			&cmdtab_pages[pg].as_slice(0, CMDS_PER_PAGE)[ofs]
-		}
-	}
-	fn get_cmdtab_ptr(&self, idx: usize) -> *mut hw::CmdTable
-	{
-		// TODO: Does the fact that this returns &-ptr break anything?
-		let r = Self::cmdidx_to_ref(&self.command_list_alloc, self.ctrlr.max_commands as usize * ::core::mem::size_of::<hw::CmdHeader>(), &self.command_tables,  idx);
-		r as *const _ as *mut _
-	}
-	*/
-	fn regs(&self) -> PortRegs {
-		PortRegs {
-			idx: self.index,
-			io: &self.ctrlr.io_base,
-			}
-	}
-	/*
-	// Re-check the port for a new device
-	pub fn update_connection(&self)
-	{
-		let io = self.regs();
+        cmd_slot.set_cmd_header(memory.read_reg(hw::REG_PxCLB) + 0x20 as u32 * cmd_slot.idx as u32, cmd_header as &hw::CmdHeader);
 
-		// SAFE: Status only registers
-		let (tfd, ssts) = (io.read(hw::REG_PxTFD), io.read(hw::REG_PxSSTS));
+        let cmd_table = cmd_slot.get_cmd_table(cmd_header.ctba); //NOTE: Maybe, (((0 | cmdheader->ctbau) << 32)|cmdheader->ctba)?
+        // println!("{:#?}", cmd_table);
+        while count > &mut 0 {
+            cmd_table.prdt[n_prdt_ents as usize].dba = data_addr; // TODO: Physical address!!! (with page.translate)
+            cmd_table.prdt[n_prdt_ents as usize].dbc = 8 * 1024 -1;    //  8K bytes (this value should always be set to 1 less than the actual value)
+            *count -= 1;
+            n_prdt_ents += 1;
+        }
 
-		if tfd & (hw::PxTFD_STS_BSY|hw::PxTFD_STS_DRQ) != 0 {
-			return ;
-		}
-		// SATA Status: Detected. 3 = Connected and PHY up
-		if (ssts & hw::PxSSTS_DET) >> hw::PxSSTS_DET_ofs != 3 {
-			return ;
-		}
-		
+        cmd_table.prdt[cmd_header.prdtl as usize].dbc |= 1 << 31;    //  512 bytes per sector
 
-		// Obtain the physical volume registration handle
-		let pvh = match io.read(hw::REG_PxSIG)
-			{
-			// Standard ATA
-			0x00000101 => {
-				// Request ATA Identify from the disk
-				const ATA_IDENTIFY: u8 = 0xEC;
-				let ident = self.request_identify(ATA_IDENTIFY).expect("Failure requesting ATA identify");
+        // Setup command
+        let cmd_data = super::hw::sata::FisHost2DevReg {
+            ty: hw::sata::FisType::H2DRegister as u8,
+            flags: 0x80,
+            command: SATA_READ_DMA_EXT,
+            sector_num: lba as u8,
+            cyl_low: (lba >> 8) as u8,
+            cyl_high: (lba >> 16) as u8,
+            dev_head: 0x40 | (0 << 4), // 0 is the disk
+            sector_num_exp: (lba >> 24) as u8,
+            cyl_low_exp: (lba >> 32) as u8,
+            cyl_high_exp: (lba >> 40) as u8,
+            sector_count: 1 as u8, // 1 is n_sectors
+            sector_count_exp: (1 >> 8) as u8, // 1 is n_sectors
+            ..Default::default()
+        };
 
-				log_debug!("ATA `IDENTIFY` response data = {:?}", ident);
-				
-				let sectors = if ident.sector_count_48 == 0 { ident.sector_count_28 as u64 } else { ident.sector_count_48 };
-				log_log!("{}: Hard Disk, {} sectors, {}", self, sectors, storage::SizePrinter(sectors * 512));
+        let command = cmd_data.as_ref();
+        cmd_table.cmd_fis[..command.len()].clone_from_slice(command);
 
-				//*
-				match ::storage_ata::volume::AtaVolume::new_boxed( self.get_interface() )
-				{
-				Ok(vol) => Some(storage::register_pv(vol)),
-				Err(e) => { log_error!("{}: Error while creating ATA device: {:?}", self, e); None },
-				}
-				// */
-				//None
-				},
-			// ATAPI Device
-			0xEB140101 => {
-				//const ATA_IDENTIFY_PACKET: u8 = 0xA1;
-				//let ident = self.request_identify(ATA_IDENTIFY_PACKET).expect("Failure requesting ATA IDENTIFY PACKET");
-				//log_debug!("ATA `IDENTIFY_PACKET_DEVICE` response data = {:?}", ident);
+        // Self::print_all_registers(memory);
 
-				log_log!("{}: ATAPI Device", self);
-				match ::storage_scsi::Volume::new_boxed( self.get_interface() )
-				{
-				Ok(scsi_vol) => Some(storage::register_pv(scsi_vol)),
-				Err(e) => { log_error!("{}: Error while creating SCSI device: {:?}", self, e); None },
-				}
-				},
-			// Unknown - Log an error
-			signature @ _ => {
-				log_error!("{} - Unknown signature {:08x}", self, signature);
-				None
-				},
-			};
+        // Send all
+        cmd_slot.set_cmd_table(cmd_header.ctba, cmd_table as &hw::CmdTable);
 
-		let mut lh = self.volume.lock();
-		if lh.is_some() {
-			log_warning!("{} - A volume is already registered", self);
-		}
-		*lh = pvh;
-	}
+        let mut spin = 0;
 
-	fn get_interface(&self) -> Interface {
-		// TODO: Store a reference count locally that's decremented when Interface is dropped
+        // Test if interface is busy or not
+        while (memory.read_reg(hw::REG_PxTFD) >> 7) == 1 {
+            println!("Interface busy!!!");
+            spin += 1;
+        }
 
-		// SAFE: Self::new() requires that this object not be moved once any methods are called. Lifetime controlled by the volume handle
-		unsafe {
-			Interface::new(self)
-		}
-	}
+        if spin == 1000000{
+            return Err("Port is hung");
+        }
 
-	fn request_identify(&self, cmd: u8) -> Result<::storage_ata::AtaIdentifyData, Error>
-	{
-		let mut ata_identify_data = ::storage_ata::AtaIdentifyData::default();
-		try!( self.request_ata_lba28(0, cmd, 0,0, DataPtr::Recv(::kernel::lib::as_byte_slice_mut(&mut ata_identify_data))) );
+        // Self::print_all_registers(memory);
 
-		fn flip_bytes(bytes: &mut [u8]) {
-			for pair in bytes.chunks_mut(2) {
-				pair.swap(0, 1);
-			}
-		}
-		// All strings are sent 16-bit endian flipped, so reverse that
-		flip_bytes(&mut ata_identify_data.serial_number);
-		flip_bytes(&mut ata_identify_data.firmware_ver);
-		flip_bytes(&mut ata_identify_data.model_number);
-		Ok( ata_identify_data )
-	}
-	*/
-	fn request_ata_lba28(&self, disk: u8, cmd: u8,  n_sectors: u8, lba: u32, data: DataPtr) -> Result<usize, Error>
-	{
-		//log_trace!("request_ata_lba28(disk={}, cmd={:#02x}, n_sectors={}, lba={})", disk, cmd, n_sectors, lba);
-		assert!(lba < (1<<24));
-		let cmd_data = hw::sata::FisHost2DevReg {
-			ty: hw::sata::FisType::H2DRegister as u8,
-			flags: 0x80,
-			command: cmd,
-			sector_num: lba as u8,
-			cyl_low: (lba >> 8) as u8,
-			cyl_high: (lba >> 16) as u8,
-			dev_head: 0x40 | (disk << 4) | (lba >> 24) as u8,
-			sector_num_exp: 0,
-			sector_count: n_sectors,
-			sector_count_exp: 0,
-			..Default::default()
-			};
-		self.do_fis(cmd_data.as_ref(), &[], data)
-	}
-	/*
-	fn request_ata_lba48(&self, disk: u8, cmd: u8,  n_sectors: u16, lba: u64, data: DataPtr) -> Result<usize, Error>
-	{
-		//log_trace!("request_ata_lba48(disk={}, cmd={:#02x}, n_sectors={}, lba={})", disk, cmd, n_sectors, lba);
-		assert!(lba < (1<<48));
-		let cmd_data = hw::sata::FisHost2DevReg {
-			ty: hw::sata::FisType::H2DRegister as u8,
-			flags: 0x80,
-			command: cmd,
-			sector_num: lba as u8,
-			cyl_low: (lba >> 8) as u8,
-			cyl_high: (lba >> 16) as u8,
-			dev_head: 0x40 | (disk << 4),
-			sector_num_exp: (lba >> 24) as u8,
-			cyl_low_exp: (lba >> 32) as u8,
-			cyl_high_exp: (lba >> 40) as u8,
-			sector_count: n_sectors as u8,
-			sector_count_exp: (n_sectors >> 8) as u8,
-			..Default::default()
-			};
-		self.do_fis(cmd_data.as_ref(), &[], data)
-	}
-	fn request_atapi(&self, disk: u8, cmd: &[u8], data: DataPtr) -> Result<(), Error>
-	{
-		let fis = hw::sata::FisHost2DevReg {
-			ty: hw::sata::FisType::H2DRegister as u8,
-			flags: 0x80,
-			command: 0xA0,
-			dev_head: (disk << 4),
-			cyl_low: (data.len() & 0xFF) as u8,
-			cyl_high: (data.len() >> 8) as u8,
-			..Default::default()
-			};
-		match self.do_fis(fis.as_ref(), cmd, data)
-		{
-		Ok(_) => Ok( () ),
-		Err(e) => Err(e),
-		}
-	}
-	*/
-	/// Create and dispatch a FIS, returns the number of bytes
-	fn do_fis(&self, cmd: &[u8], pkt: &[u8], data: DataPtr) -> Result<usize, Error>
-	{
-		//use kernel::memory::virt::get_phys;
+        cmd_slot.start(); // Issued command
 
-		////log_trace!("do_fis(self={}, cmd={:p}+{}, pkt={:p}+{}, data={:?})",
-		//	self, cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
+        // println!("{:#?}", cmd_header);
+        // Self::print_all_registers(memory);
 
-		let slot = self.get_command_slot();
+        // Wait for completion
+        // TODO: Delete this loop
+        loop{
+            // In some longer duration reads, it may be helpful to spin on the DPS bit
+            // in the PxIS port field as well (1 << 5)
+            if memory.read_reg(hw::REG_PxCI) & (1 << cmd_slot.idx) == 1{
+                break;
+            }
+            if memory.read_reg(hw::REG_PxIS) == hw::PxIS_TFES{
+                // Task file error
+                return Err("Read disk error");
+            }
+        }
 
-		slot.data.cmd_fis[..cmd.len()].clone_from_slice(cmd);
-		slot.data.atapi_cmd[..pkt.len()].clone_from_slice(pkt);
+        //Check all
+        let int_status = memory.read_reg(hw::REG_PxIS);
+        let tfd = memory.read_reg(hw::REG_PxTFD);
+        let issued_commands = memory.read_reg(hw::REG_PxCI);
+        let active_commands = memory.read_reg(hw::REG_PxSACT);
 
-		// Generate the scatter-gather list
-		let mut va = data.as_slice().as_ptr() as usize;
-		let mut len = data.as_slice().len();
-		let mut n_prdt_ents = 0;
-		while len > 0
-		{
-			let base_phys = get_phys(va as *const u8);
-			let mut seglen = crate::memory::PAGE_SIZE - base_phys as usize % crate::memory::PAGE_SIZE;
-			const MAX_SEG_LEN: usize = (1 << 22);
-			// Each entry must be contigious, and not >4MB
-			while seglen < len && seglen <= MAX_SEG_LEN && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as ::kernel::memory::PAddr
-			{
-				seglen += crate::memory::PAGE_SIZE;
-			}
-			let seglen = ::core::cmp::min(len, seglen);
-			let seglen = ::core::cmp::min(MAX_SEG_LEN, seglen);
-			if base_phys % 4 != 0 || seglen % 2 != 0 {
-				todo!("AHCI Port::do_fis - Use a bounce buffer if alignment requirements are not met");
-			}
-			assert!( n_prdt_ents < slot.data.prdt.len() );
-			slot.data.prdt[n_prdt_ents].dba = base_phys as u64;
-			slot.data.prdt[n_prdt_ents].dbc = (seglen - 1) as u32;
+        if memory.read_reg(hw::REG_PxCMD) == hw::PxCMD_CLO{
+            return Err("- Read disk error: Command list override");
+        }
+        else if int_status & hw::PxIS_TFES != 0{
+            return Err("- Read disk error: Device pushed error");
+        }
+        else if int_status & hw::PxIS_CPDS != 0{
+            println!("- Presence change");
+        }
+        else if int_status & hw::PxIS_DHRS != 0{
+            println!("- Device register update");
+        }
+        else if int_status & hw::PxIS_PSS != 0{
+            println!("- PIO setup status update");
+        }
 
-			va += seglen;
-			len -= seglen;
+        for cmd in 0 .. 32{
+            let mask = 1 << cmd;
+            if tfd & 0x01 != 0 {
+                //println!("Command was sent!!!");
+            }
+            else if issued_commands & mask == 0 || active_commands & mask == 0 {
+                //println!("Command was sent!!!");
+            }
+            else if active_commands & mask != 0{
+                // println!("Command {} active, but not used :(", cmd);
+            }
+        }
 
-			n_prdt_ents += 1;
-		}
-		slot.data.prdt[n_prdt_ents-1].dbc |= 1 << 31;	// set IOC
-		slot.hdr.prdtl = n_prdt_ents as u16;
-		slot.hdr.prdbc = 0;
-		slot.hdr.flags = (cmd.len() / 4) as u16
-			//| (multiplier_port << 12)
-			| (if data.is_send() { 1 << 6 } else { 0 })	// Write
-			| (if pkt.len() > 0 { 1 << 5 } else { 0 })	// ATAPI
-			;
+        // Self::print_all_registers(memory);
 
-		slot.event.clear();
-		// SAFE: Wait ensures that memory stays valid
-		unsafe {
-			slot.start();
-			slot.wait()
-		}
-	}
-	
-	fn get_command_slot(&self) -> CommandSlot
-	{
-		let max_commands = self.ctrlr.max_commands as usize;
+        // let rcvd_fis = Self::get_rcvd_fis(memory.read_reg(hw::REG_PxFB));
+        // println!("Received FIS: {:#?}", rcvd_fis.RFIS);
 
-		// 0. Request slot from semaphore
-		self.used_commands_sem.acquire();
-		
-		// 1. Load
-		let mut cur_used_commands = self.used_commands.load(Ordering::Relaxed);
-		loop
-		{
-			// 2. Search
-			let mut avail = self.ctrlr.max_commands as usize;
-			for i in 0 .. self.ctrlr.max_commands as usize
-			{
-				if cur_used_commands & 1 << i == 0 {
-					avail = i;
-					break ;
-				}
-			}
-			assert!(avail < self.ctrlr.max_commands as usize);
+        let cmd_header = cmd_slot.get_cmd_header(
+            memory.read_reg(hw::REG_PxCLB + 0x20 * cmd_slot.idx)
+        );
 
-			// 3. Try and commit
-			let try_new_val = cur_used_commands | (1 << avail);
-			let newval = self.used_commands.compare_and_swap(cur_used_commands, try_new_val, Ordering::Acquire);
+        // println!("Byte count: {}", cmd_header.prdbc.read());
 
-			if newval == cur_used_commands
-			{
-				// If successful, return
-				// SAFE: Exclusive access
-				let (tab, hdr) = unsafe {
-					(
-						&mut *self.get_cmdtab_ptr(avail),
-						&mut self.command_list_alloc.as_int_mut_slice(0, max_commands)[avail],
-						)
-					};
-				return CommandSlot {
-					idx: avail as u8,
-					port: self,
-					data: tab,
-					hdr: hdr,
-					event: &self.command_events[avail],
-					};
-			}
+        // Self::print_all_registers(memory);
+        Ok(())
+    }
 
-			cur_used_commands = newval;
-		}
-	}
+    pub fn print_all_registers(memory: AhciMemory){
+        println!("GHC: {:#x} CLB: {:#x} CLBU: {:#x} FB: {:#x}\nFBU: {:#x} IS: {:#x} IE: {:#x} CMD: {:#x}\nTFD: {:#x} SIG: {:#x} SSTS: {:#x} SCTL: {:#x}\nSERR: {:#x} SACT: {:#x} CI: {:#x} SNTF: {:#x} FBS: {:#x}", memory.read_value(hw::REG_GHC), memory.read_reg(hw::REG_PxCLB), memory.read_reg(hw::REG_PxCLBU), memory.read_reg(hw::REG_PxFB), memory.read_reg(hw::REG_PxFBU), memory.read_reg(hw::REG_PxIS), memory.read_reg(hw::REG_PxIE), memory.read_reg(hw::REG_PxCMD), memory.read_reg(hw::REG_PxTFD), memory.read_reg(hw::REG_PxSIG), memory.read_reg(hw::REG_PxSSTS), memory.read_reg(hw::REG_PxSCTL), memory.read_reg(hw::REG_PxSERR), memory.read_reg(hw::REG_PxSACT), memory.read_reg(hw::REG_PxCI), memory.read_reg(hw::REG_PxSNTF), memory.read_reg(hw::REG_PxFBS));
+    }
 }
 
-/*
-impl ::core::ops::Drop for Port
-{
-	fn drop(&mut self)
-	{
-		*self.volume.lock() = None;
-		//assert!( self.interface_active == false );
-	}
+#[derive(Copy, Clone)]
+pub struct CommandSlot{
+    pub mem: AhciMemory,
+    pub idx: u32,
 }
-*/
-struct CommandSlot<'a> {
-	idx: u8,
-	port: &'a Port,
-	pub data: &'a mut hw::CmdTable,
-	pub hdr: &'a mut hw::CmdHeader,
-	pub event: &'a ::kernel::sync::EventChannel,
+impl CommandSlot{
+    pub fn new(mem: AhciMemory, max_commands: usize) -> Self{
+        let mut available: u32 = 0;
+        for i in 0 .. max_commands{
+            let slot = mem.read_reg(hw::REG_PxSACT) | mem.read_reg(hw::REG_PxCI);
+            if slot & 1 << i == 0 {
+                available = i as u32;
+                break;
+            }
+        }
+        Self{
+            mem: mem,
+            idx: available,
+        }
+    }
+    pub fn start(&self){
+        self.mem.write_reg(hw::REG_PxSACT, 1);
+        self.mem.write_reg(hw::REG_PxCI, 1);
+    }
+    pub fn get_cmd_table(&self, addr: u64) -> &'static mut hw::CmdTable{
+        //TODO: Delete addr and calculate address in this function
+        unsafe { &mut *(addr as *mut hw::CmdTable) }
+    }
+
+    pub fn set_cmd_table(&self, addr: u64, cmd_table: &hw::CmdTable){
+        unsafe{
+            *(addr as *mut &hw::CmdTable) = cmd_table;
+        }
+    }
+
+    pub fn get_cmd_header(&self, addr: u32) -> &'static mut hw::CmdHeader{
+        unsafe { &mut *(addr as *mut hw::CmdHeader) }
+    }
+
+    pub fn set_cmd_header(&self, addr: u32, cmd_header: &hw::CmdHeader){
+        unsafe{
+            *(addr as *mut &hw::CmdHeader) = cmd_header;
+        }
+    }
+
+    pub fn set_data_size(&self, addr: u32, size: u16) {
+        //TODO: Remove addr such as at the top of this function
+        let cmd_header = self.get_cmd_header(addr);
+        cmd_header.prdtl = size;
+        self.set_cmd_header(addr, cmd_header);
+    }
 }
-impl<'a> CommandSlot<'a>
-{
-	// UNSAFE: Caller must ensure that memory pointed to by the `data` table stays valid until the command is complete
-	pub unsafe fn start(&self)
-	{
-		////log_trace!("{} - start(idx={})", self.port, self.idx);
-		let mask = 1 << self.idx as usize;
-		self.port.regs().write(hw::REG_PxSACT, mask);
-		self.port.regs().write(hw::REG_PxCI, mask);
-	}
-
-	/// Wait for a command to complete and returns the number of bytes transferred
-	pub fn wait(&self) -> Result<usize, Error>
-	{
-		self.event.sleep();
-
-		let regs = self.port.regs();
-		let active = regs.read(hw::REG_PxCI);
-		let tfd = regs.read(hw::REG_PxTFD);
-
-		let mask = 1 << self.idx;
-		if regs.read(hw::REG_PxSERR) != 0 {
-			Err( Error::Bus )
-		}
-		else if tfd & 0x01 != 0 {
-			// Errored (ATA)
-			if self.hdr.flags & (1 << 5) == 0 {
-				Err( Error::Ata {
-					sts: tfd as u8,
-					err: (tfd >> 8) as u8,
-					} )
-			}
-			// ATAPI error
-			else {
-				let err = (tfd >> 8) as u8;
-				Err( Error::Atapi {
-					sense_key: ::storage_scsi::proto::SenseKey::from(err >> 4),
-					eom: err & 2 != 0,
-					ili: err & 1 != 0,
-					})
-			}
-		}
-		else if active & mask == 0 {
-			// All good
-			Ok( self.hdr.prdbc as usize )
-		}
-		else {
-			panic!("{} - Command {} woken while still active", self.port, self.idx);
-		}
-	}
-}
-/*
-impl<'a> ::core::ops::Drop for CommandSlot<'a>
-{
-	fn drop(&mut self)
-	{
-		let mask = 1 << self.idx;
-		let regs = self.port.regs();
-		// SAFE: Reading has no effect
-		let cur_active = regs.read(hw::REG_PxCI) /* | regs.read(hw::REG_PxSACT) */;
-		if cur_active & mask != 0 {
-			todo!("CommandSlot::drop - Port {} cmd {} - Still active", self.port.index, self.idx);
-		}
-		
-		// Release into the pool
-		loop
-		{
-			let cur = self.port.used_commands.load(Ordering::Relaxed);
-			let new = self.port.used_commands.compare_and_swap(cur, cur & !mask, Ordering::Release);
-			if new == cur {
-				break ;
-			}
-		}
-		self.port.used_commands_sem.release();
-	}
-}
-
-/// "Interface" - A wrapper around a port that is handed to the SCSI or ATA code
-struct Interface(*const Port);
-unsafe impl Sync for Interface {}
-unsafe impl Send for Interface {}
-
-impl Interface
-{
-	unsafe fn new(port: &Port) -> Interface {
-		Interface(port)
-	}
-	fn port(&self) -> &Port {
-		// SAFE: (TODO) Port should not be dropped before this is (due to handle ownership)
-		unsafe { &*self.0 }
-	}
-}
-/*
-impl ::storage_ata::volume::Interface for Interface
-{
-	fn name(&self) -> &str { &self.port().name }
-
-	fn ata_identify(&self) -> Result<::storage_ata::AtaIdentifyData, ::storage_ata::volume::Error> {
-		match self.port().request_identify(0xEC)
-		{
-		Ok(v) => Ok(v),
-		Err(Error::Ata{err, ..}) => Err(From::from(err)),
-		Err(_) => Err(From::from(0)),
-		}
-	}
-	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<usize,::storage_ata::volume::Error> {
-		match self.port().request_ata_lba28(0, cmd, count, addr, data)
-		{
-		Ok(bc) => Ok( bc / 512 ),
-		Err(Error::Ata{err, ..}) => Err(From::from(err)),
-		Err(_) => Err(From::from(0)),
-		}
-	}
-	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<usize,::storage_ata::volume::Error> {
-		match self.port().request_ata_lba48(0, cmd, count, addr, data)
-		{
-		Ok(bc) => Ok( bc / 512 ),
-		Err(Error::Ata{err, ..}) => Err(From::from(err)),
-		Err(_) => Err(From::from(0)),
-		}
-	}
-}
-
-impl ::storage_scsi::ScsiInterface for Interface
-{
-	fn name(&self) -> &str {
-		&self.port().name
-	}
-	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,()>
-	{
-		use storage_scsi::proto::SenseKey;
-		use kernel::async::NullResultWaiter;
-		match self.port().request_atapi(0, command, DataPtr::Send(data))
-		{
-		Ok(_) => Box::new( NullResultWaiter::new(|| Ok( () )) ),
-		Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::NoMedium))),
-		Err(_) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::Unknown(""))))
-		}
-	}
-	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
-	{
-		use storage_scsi::proto::SenseKey;
-		use kernel::async::NullResultWaiter;
-		match self.port().request_atapi(0, command, DataPtr::Recv(data))
-		{
-		Ok(_) => Box::new( NullResultWaiter::new(|| Ok( () )) ),
-		Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::NoMedium))),
-		Err(_) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::Unknown(""))))
-		}
-	}
-}
-*/
-*/

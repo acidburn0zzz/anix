@@ -1,4 +1,4 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*Copyright (C) 2018-2019 Nicolas Fouquet
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,19 +13,19 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
- 
+
 #![no_std]
-#![feature(unsize,coerce_unsized)]	// For DST smart pointers
-#![feature(core_intrinsics)]	// Intrinsics
-#![feature(box_syntax)]	// Enables 'box' syntax
-#![feature(box_patterns)]	// Used in boxed::unwrap
-#![feature(thread_local)]	// Allows use of thread_local
-#![feature(lang_items)]	// Allow definition of lang_items
-#![feature(asm)]	// Enables the asm! syntax extension
-#![feature(optin_builtin_traits)]	// Negative impls
-#![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
-#![feature(linkage)]	// allows using #[linkage="external"]
-#![feature(const_fn)]	// Allows defining `const fn`
+#![feature(unsize,coerce_unsized)]    // For DST smart pointers
+#![feature(core_intrinsics)]    // Intrinsics
+#![feature(box_syntax)]    // Enables 'box' syntax
+#![feature(box_patterns)]    // Used in boxed::unwrap
+#![feature(thread_local)]    // Allows use of thread_local
+#![feature(lang_items)]    // Allow definition of lang_items
+#![feature(asm)]    // Enables the asm! syntax extension
+#![feature(optin_builtin_traits)]    // Negative impls
+#![feature(slice_patterns)]    // Slice (array) destructuring patterns, used by multiboot code
+#![feature(linkage)]    // allows using #[linkage="external"]
+#![feature(const_fn)]    // Allows defining `const fn`
 #![feature(abi_x86_interrupt)]
 #![feature(uniform_paths)]
 #![feature(type_ascription)]
@@ -38,6 +38,7 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 #![feature(custom_attribute)]
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]
+#![feature(const_vec_new)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 #![feature(alloc)] // The alloc crate is still unstable
@@ -80,6 +81,8 @@ pub mod task; //Tasks management
 pub mod errors; //Errors
 pub mod pci; //Pci management (TODO)
 pub mod disk; //Disk read and write (support ide (not tested) and sata)
+pub mod drivers; //Drivers management
+pub mod graphics; //Display things on screen
 
 use core::panic::PanicInfo;
 use idt::PICS;
@@ -87,8 +90,7 @@ use x86::time::*;
 use memory::*;
 use common::{hlt_loop, ok};
 use x86_64::registers::control::*;
-use memory::{Frame, FrameAllocator};
-use memory::table::ActivePageTable;
+use memory::AreaFrameAllocator;
 use spin::Mutex;
 use lazy_static::lazy_static;
 use task::*;
@@ -97,86 +99,101 @@ use core::alloc::GlobalAlloc;
 use alloc::alloc::Layout;
 
 #[global_allocator]
-static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
-    
+pub static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
+
+pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> = Mutex::new(None);
+
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
 #[no_mangle] // don't mangle the name of this function
 pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     screen::logo_screen();
-    
+
     println!("Welcome!\nAnix is starting...");
     let boot_info = unsafe {
         multiboot2::load(multiboot_information_address)
     };
-	
-	let initrd_start = boot_info.module_tags().next().unwrap().start_address();
-	let initrd_end = boot_info.module_tags().next().unwrap().end_address();
-    
-    unsafe{
-		print!("\nDEBUG: init GDT");
-		gdt::init();
-		ok();
-		print!("\nCS:\n{}\n", x86::segmentation::cs());
+
+    let initrd_start = boot_info.module_tags().next().unwrap().start_address();
+
+    unsafe {
+        print!("\nDEBUG: init GDT");
+        gdt::init();
+        ok();
+        print!("\nCS:\n{}\n", x86::segmentation::cs());
     }
-    
-	print!("\nDEBUG: init IDT");
-	idt::init_idt();
-	ok();
-    
+
+    print!("\nDEBUG: init IDT");
+    idt::init_idt();
+    ok();
+
     print!("\nDEBUG: init pics");
     unsafe { PICS.lock().initialize() };
     ok();
-    
+
     print!("\nDEBUG: Init memory");
     enable_nxe_bit();
-	enable_write_protect_bit();
-    memory::init(boot_info);
+    enable_write_protect_bit();
+
+    unsafe {
+        memory::init(boot_info);
+    }
     ok();
-	
-	print!("\nDEBUG: set initrd start");
-	unsafe{
-		set_initrd_addr_start(initrd_start);
-	}
-	ok();
+
+    print!("\nDEBUG: set initrd start");
+    unsafe {
+        set_initrd_addr_start(initrd_start);
+    }
+    ok();
+
+    print!("\nDEBUG: Start tasking system");
+
+    unsafe {
+        Task::new("system", system as *const () as u32);
+
+        TASK_RUNNING = CURRENT_TASKS[0];
+    }
+    ok();
+
+    print!("\nDEBUG: Start SATA driver");
+    disk::sata::init();
+    ok();
     
-	print!("\nDEBUG: Start tasking system");
-	
-	unsafe{
-		Task::new("system", system as *const () as u32);
-		
-		TASK_RUNNING = CURRENT_TASKS[0];
-	}
-	ok();
-	
-	print!("\nDEBUG: enable interrupts");
+    print!("\nDEBUG: Start VGA driver");
+    graphics::draw::init();
+    ok();
+
+    print!("\nDEBUG: Start PCI driver");
+    pci::init();
+    ok();
+
+    print!("\nDEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();
     ok();
 
-	print!("\nAnix>");
-    
+    print!("\nxsh>");
+
     hlt_loop();
 }
 
-extern "C"{
-	fn set_initrd_addr_start(addr: u32);
+extern "C" {
+    fn set_initrd_addr_start(addr: u32);
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-	print!("\n{:#?}", info);
-	hlt_loop();
+    print!("\n{:#?}", info);
+    hlt_loop();
 }
+
 #[alloc_error_handler]
-fn handle_alloc_error(layout: Layout) -> !{
-	print!("\n{:#?}", layout);
-	hlt_loop();
+fn handle_alloc_error(layout: Layout) -> ! {
+    print!("\n{:#?}", layout);
+    hlt_loop();
 }
 
-static mut increment_test: u32 = 0;
+fn system() {
 
-fn system(){
-	
 }
 
 fn enable_nxe_bit() {

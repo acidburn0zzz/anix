@@ -1,9 +1,9 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*Copyright (C) 2018-2019 Nicolas Fouquet
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,6 +17,7 @@ use core::fmt;
 use spin::Mutex;
 use volatile::Volatile;
 use lazy_static::lazy_static;
+use x86::io::*;
 
 lazy_static! {
     /// A global `Writer` instance that can be used for printing to the VGA text buffer.
@@ -156,7 +157,7 @@ impl Writer {
             self.buffer.chars[r][c].write(blank);
         }
     }
-    
+
     pub fn clear_char(&mut self, r: usize, c: usize, color: ColorCode) {
         let blank = ScreenChar {
             ascii_character: b' ',
@@ -219,7 +220,7 @@ pub fn starter_screen(){
             }
         }
     }*/
-	
+
 }
 
 pub fn logo_screen(){
@@ -235,25 +236,16 @@ pub fn logo_screen(){
 }
 
 pub fn move_cursor(row: usize, col: usize) {
-   let pos = row * BUFFER_WIDTH + col;
-   unsafe {
-      asm!("
-         mov al, 0xF
-         mov dx, 0x3D4
-         out dx, al
+    const VGA_CMD: u16 = 0x3d4;
+    const VGA_DATA: u16 = 0x3d5;
+    let cursor_offset = (row * BUFFER_WIDTH + col) as u16;
+    let lsb = (cursor_offset & 0xFF) as u8;
+    let msb = (cursor_offset >> 8) as u8;
 
-         mov ax, bx
-         mov dx, 0x3D5
-         out dx, al
-
-         mov al, 0xE
-         mov dx, 0x3D4
-         out dx, al
-
-         mov ax, bx
-         shr ax, 8
-         mov dx, 0x3D5
-         out dx, al
-      " : : "{bx}" (pos) : "al", "dx": "intel");
-   }
+    unsafe {
+        outb(VGA_CMD, 0x0f);
+        outb(VGA_DATA, lsb);
+        outb(VGA_CMD, 0x0e);
+        outb(VGA_DATA, msb);
+    }
 }

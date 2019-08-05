@@ -14,3 +14,4 @@ panic = "abort"
 crate-type = ["staticlib"]
 
 [target.x86_64-unknown-linux-gnu.dependencies.alloc]
+#[target.x86_64-unknown-linux-gnu.dependencies.std]

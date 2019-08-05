@@ -129,26 +129,6 @@ pub extern "x86-interrupt" fn fpu_interrupt_handler(stack_frame: &mut InterruptS
     unsafe { PICS.lock().notify_end_of_interrupt(FPU_ID) }
 }
 
-pub extern "x86-interrupt" fn ata1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nATA1\n{:#?}", stack_frame);
-    unsafe { PICS.lock().notify_end_of_interrupt(ATA1_ID) }
-}
-
-pub extern "x86-interrupt" fn ata2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nATA2\n{:#?}", stack_frame);
-    unsafe { PICS.lock().notify_end_of_interrupt(ATA2_ID) }
-}
-
-pub extern "x86-interrupt" fn disk_primary_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nDISK PRIMARY\n{:#?}", stack_frame);
-    unsafe { PICS.lock().notify_end_of_interrupt(DISK_PRIMARY_ID) }
-}
-
-pub extern "x86-interrupt" fn disk_secondary_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nDISK SECONDARY\n{:#?}", stack_frame);
-    unsafe { PICS.lock().notify_end_of_interrupt(DISK_SECONDARY_ID) }
-}
-
 pub extern "x86-interrupt" fn syscall_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
     print!("\n\nSYSCALL\n{:#?}", stack_frame);
     unsafe{do_syscall();}

@@ -14,6 +14,9 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
 use crate::screen::*;
+use core::char::from_digit;
+use alloc::prelude::String;
+use alloc::prelude::ToString;
 
 ///Stop the computer
 pub fn hlt_loop() -> ! {

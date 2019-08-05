@@ -11,12 +11,12 @@
 //!```
 //! //In src/user/input.rs
 //!use crate::commands::test;
-//!static commands: [Command; 1] = [
-//!	Command{cmd: ['t', 'e', 's', 't', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '], function: test},
+//!let commands: [Command; 1] = [
+//!	Command{cmd: "test".to_string(), function: test},
 //!];
 //!```
 
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*Copyright (C) 2018-2019 Nicolas Fouquet
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -35,58 +35,47 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 use crate::screen::{ColorCode, Color, WRITER};
 use alloc::string::String;
 
-pub fn blank(cmd: String){
+pub fn blank(_cmd: String){
     println!("Input is blank!");
 }
 
-pub fn hello_world(cmd: String){
+pub fn hello_world(_cmd: String){
     println!("\nHello world!");
 }
 
-pub fn startfs(cmd: String){
+pub fn startfs(_cmd: String){
     use crate::fs;
     fs::fs::fsmain();
 }
 
-pub fn clock(cmd: String){
+pub fn clock(_cmd: String){
     use time::*;
 	//let day = number_to_day(n.day);
 	unsafe{print!("\n{}:{}:{}", time.hours, time.minutes, time.seconds);}
 }
 
-pub fn user(cmd: String){
+pub fn user(_cmd: String){
     use crate::user::switch::init_user;
     init_user();
 }
 
-pub fn help(cmd: String){
+pub fn help(_cmd: String){
     print!("\nCommands:\n   hello: Print \"Hello world!\"\n   fs: Test fs\n   clock: Print the time since you have started Anix\n   reset: Restart Anix\n   user: (not work)\n   lspci: Print all pci devices\n   mem: Test memory");
 }
 
-pub fn lspci(cmd: String){
-	//use crate::pci::pci_probe;
-	extern "C" {
-		fn lspci(row: usize, col: usize, color: u8) -> u32;
-	}
-	unsafe{
-		let r = WRITER.lock().row;
-		let c = WRITER.lock().col;
-		let color = WRITER.lock().color_code.0;
-		lspci(r, c, color);
-	}
-	/*unsafe{
-		pci_probe();
-	}*/
+pub fn lspci(_cmd: String){
+	use crate::pci;
+	pci::list_devices();
 }
 
-pub fn test_mem(cmd: String){
+pub fn test_mem(_cmd: String){
 	use crate::memory::table;
 	use crate::common::ok;
-	
+
 	print!("\nTEST: Tables");
 	table::test();
 	ok();
-	
+
 	print!("\nTEST: Translate VirtAddr to PhysAddr");
 	unsafe{
 		let page = table::ActivePageTable::new();
@@ -94,4 +83,12 @@ pub fn test_mem(cmd: String){
 		ok();
 		print!("\n0xb8000 -> {:#x}", addr_translated);
 	}
+}
+
+pub fn startflame(_cmd: String){
+	println!("\nFlame is starting...");
+	
+	crate::graphics::draw::init();
+	
+	println!("Flame say to you hello!!!");
 }

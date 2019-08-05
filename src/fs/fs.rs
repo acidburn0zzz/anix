@@ -14,20 +14,20 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
 use crate::screen::{ColorCode, Color, WRITER, fill};
-use disk::sata::sata_init;
+//use disk::sata::sata_init;
 
-extern "C"{
+/*extern "C"{
 	fn test_fs(row: usize, col: usize, color: u8);
-}
+}*/
 
 pub fn fsmain(){
-	unsafe{
+	/*unsafe{
 		let r = WRITER.lock().row;
 		let c = WRITER.lock().col;
 		let color = WRITER.lock().color_code.0;
-		test_fs(r, c, color);
+		//test_fs(r, c, color);
 		
-		sata_init();
+		//sata_init();
 		//test_ide();
-	}
+	}*/
 }

@@ -1,14 +1,7 @@
-//Thanks you Tifflin ;)
-//mod bus_bindings;
-//pub mod hw;
+pub mod hw;
+pub mod driver; //Register the driver
+pub mod port;
 
-//pub mod controller;
-//pub mod port;
-
-//pub mod storage;
-
-pub fn sata_init(){
-	//::kernel::device_manager::register_driver(&bus_bindings::S_PCI_DRIVER);
+pub fn init(){
+	crate::drivers::register_driver(&driver::S_PCI_DRIVER);
 }
-
-

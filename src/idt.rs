@@ -76,8 +76,6 @@ lazy_static! {
 		idt[usize::from(PCI3_ID)].set_handler_fn(pci3_interrupt_handler);
 		idt[usize::from(MOUSE_ID)].set_handler_fn(mouse_interrupt_handler);
 		idt[usize::from(FPU_ID)].set_handler_fn(fpu_interrupt_handler);
-		idt[usize::from(ATA1_ID)].set_handler_fn(ata1_interrupt_handler);
-		idt[usize::from(ATA2_ID)].set_handler_fn(ata2_interrupt_handler);
 		idt[usize::from(SYSCALL_ID)].set_handler_fn(syscall_interrupt_handler).set_privilege_level(Ring3);
         idt
     };

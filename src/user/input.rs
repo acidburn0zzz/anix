@@ -1,4 +1,4 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*Copyright (C) 2018-2019 Nicolas Fouquet
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
-use crate::commands::{blank, hello_world, startfs, clock, user, lspci, help, test_mem};
+use crate::commands::{blank, hello_world, startfs, clock, user, lspci, help, test_mem, startflame};
 use crate::screen::WRITER;
 use alloc::string::String;
 use alloc::prelude::ToString;
@@ -43,22 +43,22 @@ lazy_static! {
 pub unsafe fn cmd_character(c: char){
 	unsafe{
 		if INPUT.lock().actived == true{
-			//If enter is pressed exec the function
+			// If enter is pressed exec the function
 			if c == '\n'{
-				//Block the input
+				// Block the input
 				INPUT.lock().actived = false;
-				
-				//Do the command
+
+				// Do the command
 				detectcmd(INPUT.lock().content.clone());
-				
-				//Show the prompt
+
+				// Show the prompt
 				WRITER.lock().new_line();
-				print!("Anix>");
-				
-				//Clear the buffer
+				print!("xsh>");
+
+				// Clear the buffer
 				INPUT.lock().content = "".to_string();
-				
-				//Reactivate input
+
+				// Reactivate input
 				INPUT.lock().actived = true;
 			}
 			else{
@@ -78,9 +78,9 @@ pub unsafe fn cmd_number(n: pc_keyboard::KeyCode){
 	}
 }
 
-///Function for detect command and exec it
+/// Function for detect command and exec it
 pub unsafe fn detectcmd(cmd: String){
-	//TODO: Use Vec instead of Array
+	// TODO: Use Vec instead of Array
 	let commands = [
 		Command{cmd: "hello".to_string(), function: hello_world},
 		Command{cmd: "fs".to_string(), function: startfs},
@@ -89,25 +89,26 @@ pub unsafe fn detectcmd(cmd: String){
 		Command{cmd: "lspci".to_string(), function: lspci},
 		Command{cmd: "help".to_string(), function: help},
 		Command{cmd: "mem".to_string(), function: test_mem},
+		Command{cmd: "startflame".to_string(), function: startflame},
 	];
 
     let mut commandIsExec = false;
-    
-    //Find the function in the array of functions
+
+    // Find the function in the array of functions
     for c in commands.iter(){
-		//If the command selected is the same as the input
+		// If the command selected is the same as the input
 		if string_to_str(cmd.clone()).starts_with(string_to_str(c.cmd.clone())){
-			//Call the function
-			
-			//TODO: Decomment this when we can kill tasks
-			//let cmd_task = Task::new(c.cmd.clone(), (c.function) as *const () as u32);
+			// Call the function
+
+			// TODO: Decomment this when we can kill tasks
+			// let cmd_task = Task::new(c.cmd.clone(), (c.function) as *const () as u32);
 			(c.function)(cmd.clone());
-			//cmd_task.kill();
+			// cmd_task.kill();
 			commandIsExec = true;
 		}
     }
 
-    //Detects if the function has been executed
+    // Detects if the function has been executed
     if commandIsExec == false{
 		print!("\nUnknown command: {:?}", cmd);
     }
