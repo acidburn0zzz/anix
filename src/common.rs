@@ -1,4 +1,4 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*Copyright (C) 2018-2019 Nicolas Fouquet
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,34 +13,40 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+use core::ptr::copy_nonoverlapping;
 use crate::screen::*;
-use core::char::from_digit;
-use alloc::prelude::String;
-use alloc::prelude::ToString;
 
-///Stop the computer
+/// Stop the computer
 pub fn hlt_loop() -> ! {
-	loop{
-		x86_64::instructions::hlt();
-	}
+    loop{
+        x86_64::instructions::hlt();
+    }
 }
 
 pub fn error(info: &'static str){
-	print!("ERROR: {}", info);
-	hlt_loop();
+    print!("ERROR: {}", info);
+    hlt_loop();
 }
 
-///Print [ OK ] on the screen
+/// Print [ OK ] on the screen
 pub fn ok(){
-	WRITER.lock().color_code = ColorCode::new(Color::LightGreen, Color::Black);
-	print!(" [ OK ]");
-	WRITER.lock().color_code = ColorCode::new(Color::Green, Color::Black);
+    WRITER.lock().color_code = ColorCode::new(Color::LightGreen, Color::Black);
+    print!(" [ OK ]");
+    WRITER.lock().color_code = ColorCode::new(Color::Green, Color::Black);
 }
 
-///Rust have a left and right shift strange so we use the C left and right shift
-//<< Left shift
-//>> Right shift
-extern "C" {
-	pub fn left_shift(number1: u32, number2: u32) -> u32;
-	pub fn right_shift(number1: u32, number2: u32) -> u32;
+#[macro_export]
+macro_rules! read_num_bytes {
+    ($ty:ty, $src:expr) => ({
+        let size = core::mem::size_of::<$ty>();
+        assert!(size <= $src.len());
+        let mut data: $ty = 0;
+        unsafe {
+            copy_nonoverlapping(
+                $src.as_ptr(),
+                &mut data as *mut $ty as *mut u8,
+                size);
+        }
+        data
+    });
 }

@@ -11,21 +11,33 @@ SECTIONS {
 		. = ALIGN(4K);
 	}
 
-	.text : ALIGN(4K)	/*WARNING: Not aligned!!! (addr: 0x13B030)*/
+	.text : ALIGN(4K)	/* FIXME: WARNING: Not aligned!!! (addr: 0x13B030)*/
 	{
 		*(.text .text.*)
 		. = ALIGN(4K);
 	}
 
-	.bss : ALIGN(4K)
+	.tdata : ALIGN(4K)
 	{
-		*(.bss .bss.*)
+		*(.tdata .tdata.*)
 		. = ALIGN(4K);
 	}
-
+	
+	.tbss : ALIGN(4K)
+	{
+		*(.tbss .tbss.*)
+		. = ALIGN(4K);
+	}
+	
 	.got : ALIGN(4K)
 	{
 		*(.got)
+		. = ALIGN(4K);
+	}
+	
+	.bss : ALIGN(4K)
+	{
+		*(.bss .bss.*)
 		. = ALIGN(4K);
 	}
 
@@ -34,7 +46,7 @@ SECTIONS {
 		*(.eh_frame)
 		. = ALIGN(4K);
 	}
-
+	
 	.fini : ALIGN(4K)
 	{
 		*(.fini)

@@ -1,4 +1,5 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
+/*
+Copyright (C) 2018-2019 Nicolas Fouquet 
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,38 +14,42 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+
+#![allow(unused_assignments)]
+#![allow(unused_variables)]
+
 use crate::task::*;
 use x86::io::*;
 
-///Change the current task
+/// Change the current task
 pub unsafe fn schedule(){
-	//Save registers
+	// Save registers
 	save_registers();
 
-	//Change task
+	// Change task
 	if CURRENT_TASKS[TASK_RUNNING.unwrap().pid + 1] != None{
-		//Select the next task
+		// Select the next task
 		TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.unwrap().pid + 1];
 	}
 	else{
-		//Come back on the start of the tasks array
+		// Come back on the start of the tasks array
 		TASK_RUNNING = CURRENT_TASKS[0];
 	}
 
-	//Restore registers
+	// Restore registers
 	restore_registers();
 
-	//Run task
+	// Run task
 	run_task();
 } 
 
-///Save the state of the registers in the tasks array
+/// Save the state of the registers in the tasks array
 pub unsafe fn save_registers(){
-	let mut esp: u32 = 0;
-	let mut eip: u32 = 0;
-	let mut ebp: u32 = 0;
+	let mut esp: u32 = 0; // TODO: Use x86::bits64::registers::rsp
+	let mut eip: u32 = 0; // TODO: Use x86::bits64::registers::rip
+	let mut ebp: u32 = 0; // TODO: Use x86::bits64::registers::rbp
 	
-	//Get the state of the registers
+	// Get the state of the registers
 	asm!("movq %rsp, %rax"
 		: "={rax}" (esp)
 		:
@@ -62,23 +67,23 @@ pub unsafe fn save_registers(){
 	
 	eip = read_eip().into();
 	
-	//Copy the registers in the tasks array
-	TASK_RUNNING.unwrap().esp = esp; //Copy the stack
-	TASK_RUNNING.unwrap().eip = eip; //Copy the instruction pointer
-	TASK_RUNNING.unwrap().ebp = ebp; //Copy the control register
+	// Copy the registers in the tasks array
+	TASK_RUNNING.unwrap().esp = esp; // Copy the stack
+	TASK_RUNNING.unwrap().eip = eip; // Copy the instruction pointer
+	TASK_RUNNING.unwrap().ebp = ebp; // Copy the control register
 }
 
 extern "C"{
 	fn read_eip() -> u16;
 }
 
-///Restore the state of the registers saved in the tasks array
+/// Restore the state of the registers saved in the tasks array
 pub unsafe fn restore_registers(){
 	let mut esp: u32 = TASK_RUNNING.unwrap().esp;
 	let mut ebp: u32 = TASK_RUNNING.unwrap().ebp;
-	//TODO: Volatile !!!
+	// TODO: Volatile!!!
 	
-	//Get the state of the registers
+	// Get the state of the registers
 	asm!("movq %rsp, %rax"
 		: "={rax}"(esp)
 		:
@@ -94,7 +99,7 @@ pub unsafe fn restore_registers(){
 		);
 }
 
-///Jump to the function
+/// Jump to the function
 pub unsafe fn run_task(){
 	asm!("call rax"
 		:

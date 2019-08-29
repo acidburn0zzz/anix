@@ -16,10 +16,10 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 pub mod scheduler;
 use core::ffi::c_void;
 
-pub static mut CURRENT_PID: usize = 0; //The pid for create a new task
+pub static mut CURRENT_PID: usize = 0; // The pid for create a new task
 //TODO: Use a Vec
-pub static mut CURRENT_TASKS: [Option<Task>; 4096] = [None; 4096]; //The array which contains all tasks
-pub static mut TASK_RUNNING: Option<Task> = None; //The pid of the running task
+pub static mut CURRENT_TASKS: [Option<Task>; 4096] = [None; 4096]; // The array which contains all tasks
+pub static mut TASK_RUNNING: Option<Task> = None; // The pid of the running task
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState{
@@ -31,11 +31,11 @@ pub enum TaskState{
 pub struct Task {
 	pub name: &'static str,
 	pub pid: usize,
-	pub esp: u32, //Stack pointer
-	pub eip: u32, //Instruction pointer (next instruction which will be executed)
+	pub esp: u32, // Stack pointer
+	pub eip: u32, // Instruction pointer (next instruction which will be executed)
 	pub ebp: u32,
 	pub state: TaskState,
-	//TODO: Files used by the task
+	// TODO: Files used by the task
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +78,7 @@ impl Default for Stack{
 }
 
 impl Task{
-	///Create a new alive task and add it in the tasks array
+	/// Create a new alive task and add it in the tasks array
 	pub unsafe fn new(name: &'static str, addr: u32) -> Self{
 		let new_task = Self{
 			name: name,
@@ -95,10 +95,10 @@ impl Task{
 	}
 	
 	pub unsafe fn kill(&self){
-		//TODO: Kill a task with this function
-		//		-Dont use the pid such as tasks array index
-		//		-Create the task on a None or a Dead task
-		//		-Run the task if it is not a Dead task
+		// TODO: Kill a task with this function
+		//		- Dont use the pid such as tasks array index
+		//		- Create the task on a None or a Dead task
+		//		- Run the task if it is not a Dead task
 		
 		//Dont work
 		for selected_task in self.pid..4096 {
@@ -117,7 +117,7 @@ impl Task{
 		}
 	}
 	
-	///Give informations about the task
+	/// Give informations about the task
 	pub fn information(&self){
 		print!("\nTask {} with pid {}\nEip: {} and Ebp: {}\nState: {:?}", self.name, self.pid, self.eip, self.ebp, self.state);
 	}

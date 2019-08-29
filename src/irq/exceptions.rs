@@ -64,14 +64,13 @@ pub extern "x86-interrupt" fn stack_segment_fault_handler(stack_frame: &mut Inte
 
 pub extern "x86-interrupt" fn general_protection_fault_handler(stack_frame: &mut InterruptStackFrame, _error_code: u64) {
     print!("EXCEPTION: GENERAL PROTECTION FAULT\n{:#?}", stack_frame);
-    //hlt_loop();
+    hlt_loop();
 }
 
 
-pub extern "x86-interrupt" fn page_fault_handler(stack_frame: &mut InterruptStackFrame, error_code: PageFaultErrorCode) {
-    print!("\nEXCEPTION: PAGE FAULT with error code: {:?}", error_code);
-	print!("\nStack: {:?}", stack_frame);
-    //hlt_loop();
+pub extern "x86-interrupt" fn page_fault_handler(_stack_frame: &mut InterruptStackFrame, error_code: PageFaultErrorCode) {
+    print!("EXCEPTION PAGE FAULT with error code {:#?}", error_code);
+    hlt_loop();
 }
 
 pub extern "x86-interrupt" fn x87_floating_point_handler(stack_frame: &mut InterruptStackFrame) {

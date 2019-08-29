@@ -38,9 +38,7 @@ asm volatile(
 */
 }
 pub fn init_user(){
-	unsafe{
-		println!("Switch");
-		switch_to_usermode();
-		println!("Success! You are now in user mode!");
-	}
+	println!("Switch");
+	switch_to_usermode();
+	println!("Success! You are now in user mode!");
 }

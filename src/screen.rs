@@ -88,7 +88,7 @@ struct Buffer {
 /// Wraps lines at `BUFFER_WIDTH`. Supports newline characters and implements the
 /// `core::fmt::Write` trait.
 pub struct Writer {
-	pub row: usize,
+    pub row: usize,
     pub col: usize,
     pub color_code: ColorCode,
     buffer: &'static mut Buffer,
@@ -128,7 +128,7 @@ impl Writer {
         for byte in s.bytes() {
             match byte {
                 // printable ASCII byte or newline
-                0x20...0x7e | b'\n' => self.write_byte(byte),
+                0x20..=0x7e | b'\n' => self.write_byte(byte),
                 // not part of printable ASCII range
                 _ => self.write_byte(0xfe),
             }
@@ -191,6 +191,18 @@ macro_rules! print {
 macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {
+		// Save actual color code
+		let old_color = WRITER.lock().color_code;
+		
+		WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
+		$crate::print!("DEBUG: {}\n", format_args!($($arg)*));
+		WRITER.lock().color_code = old_color;
+	};
 }
 
 /// Prints the given formatted string to the VGA text buffer through the global `WRITER` instance.

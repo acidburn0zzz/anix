@@ -46,7 +46,7 @@ impl ActivePageTable {
 
     pub fn with<F>(&mut self,
                    table: &mut InactivePageTable,
-                   temporary_page: &mut temporary_page::TemporaryPage, // new
+                   _temporary_page: &mut temporary_page::TemporaryPage,
                    f: F)
         where F: FnOnce(&mut Mapper)
 {

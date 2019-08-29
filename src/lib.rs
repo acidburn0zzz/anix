@@ -1,4 +1,5 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet
+/*
+Copyright (C) 2018-2019 Nicolas Fouquet
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -15,44 +16,44 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 */
 
 #![no_std]
-#![feature(unsize,coerce_unsized)]    // For DST smart pointers
-#![feature(core_intrinsics)]    // Intrinsics
-#![feature(box_syntax)]    // Enables 'box' syntax
-#![feature(box_patterns)]    // Used in boxed::unwrap
-#![feature(thread_local)]    // Allows use of thread_local
-#![feature(lang_items)]    // Allow definition of lang_items
-#![feature(asm)]    // Enables the asm! syntax extension
-#![feature(optin_builtin_traits)]    // Negative impls
-#![feature(slice_patterns)]    // Slice (array) destructuring patterns, used by multiboot code
-#![feature(linkage)]    // allows using #[linkage="external"]
-#![feature(const_fn)]    // Allows defining `const fn`
+#![feature(unsize,coerce_unsized)] // For DST smart pointers
+#![feature(core_intrinsics)] // Intrinsics
+#![feature(box_syntax)] // Enables 'box' syntax
+#![feature(box_patterns)] // Used in boxed::unwrap
+#![feature(thread_local)] // Allows use of thread_local
+#![feature(lang_items)] // Allow definition of lang_items
+#![feature(asm)] // Enables the asm! syntax extension
+#![feature(optin_builtin_traits)] // Negative impls
+#![feature(slice_patterns)] // Slice (array) destructuring patterns, used by multiboot code
+#![feature(linkage)] // allows using #[linkage="external"]
+#![feature(const_fn)] // Allows defining `const fn`
 #![feature(abi_x86_interrupt)]
-#![feature(uniform_paths)]
 #![feature(type_ascription)]
 #![feature(naked_functions)]
 #![feature(rustc_private)]
 #![feature(c_void_variant)]
-#![feature(range_contains)]
 #![feature(ptr_internals)]
 #![feature(global_asm)]
 #![feature(custom_attribute)]
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]
 #![feature(const_vec_new)]
+#![feature(slice_index_methods)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
-#![feature(alloc)] // The alloc crate is still unstable
 
 #![allow(unused_imports)]
 #![allow(exceeding_bitshifts)]
-//Imports
+#![allow(non_snake_case)]
 
-//Crates
+// Imports
+
+// Crates
 #[macro_use]
 extern crate alloc;
 #[macro_use]
 extern crate spin;
-extern crate x86_64; //WARNING: You must add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
+extern crate x86_64; // WARNING: You must add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
 extern crate lazy_static;
 extern crate volatile;
 extern crate pic8259_simple;
@@ -62,27 +63,32 @@ extern crate x86;
 extern crate bitflags;
 extern crate rlibc;
 extern crate multiboot2;
+extern crate byteorder;
+extern crate genio;
+extern crate plain;
 #[macro_use]
 extern crate once;
 
-//Modules
+// Modules
 #[macro_use]
-pub mod screen; //Utilities for screen (print, ...)
-pub mod gdt; //GDT
-pub mod idt; //IDT (Interrupts Descriptor Table)
-pub mod time; //Time management (TODO)
-pub mod fs; //Filesystem (TODO)
-pub mod commands; //Commands for input (for add a command, see the header of commands.rs)
-pub mod user; //User functionnalities (TODO)
-pub mod common; //Common functions
-pub mod irq; //Interrupts management
-pub mod memory; //Memory management
-pub mod task; //Tasks management
-pub mod errors; //Errors
-pub mod pci; //Pci management (TODO)
-pub mod disk; //Disk read and write (support ide (not tested) and sata)
-pub mod drivers; //Drivers management
-pub mod graphics; //Display things on screen
+pub mod screen; // Utilities for screen (print, ...)
+pub mod gdt; // GDT
+pub mod idt; // IDT (Interrupts Descriptor Table)
+pub mod time; // Time management (TODO)
+pub mod fs; // Filesystem (TODO)
+pub mod commands; // Commands for input (for add a command, see the header of commands.rs)
+pub mod user; // User functionnalities (TODO)
+pub mod common; // Common functions
+pub mod irq; // Interrupts management
+pub mod memory; // Memory management
+pub mod task; // Tasks management
+pub mod errors; // Errors
+pub mod pci; // Pci management (TODO)
+pub mod disk; // Disk read and write (support ide (not tested) and sata)
+pub mod drivers; // Drivers management
+pub mod graphics; // Display things on screen
+pub mod usb; // USB management
+pub mod io; // IO (memory) management
 
 use core::panic::PanicInfo;
 use idt::PICS;
@@ -97,11 +103,15 @@ use task::*;
 use memory::heap::{HEAP_START, HEAP_SIZE, BumpAllocator};
 use core::alloc::GlobalAlloc;
 use alloc::alloc::Layout;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 #[global_allocator]
 pub static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
 
 pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> = Mutex::new(None);
+
+pub static KERNEL_BASE: AtomicUsize = AtomicUsize::new(0);
+pub static KERNEL_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
@@ -115,6 +125,13 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     };
 
     let initrd_start = boot_info.module_tags().next().unwrap().start_address();
+    let kernel_start = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr).min().unwrap();
+    let kernel_end = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr + s.size).max().unwrap();
+
+    KERNEL_BASE.store(kernel_start as usize, Ordering::SeqCst);
+    KERNEL_SIZE.store(kernel_end as usize - kernel_start as usize, Ordering::SeqCst);
+
+    // TODO: Change all print!("\n") by println!("")
 
     unsafe {
         print!("\nDEBUG: init GDT");
@@ -138,7 +155,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     unsafe {
         memory::init(boot_info);
     }
-    ok();
 
     print!("\nDEBUG: set initrd start");
     unsafe {
@@ -158,17 +174,25 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     print!("\nDEBUG: Start SATA driver");
     disk::sata::init();
     ok();
-    
+
+    print!("\nDEBUG: Start USB (EHCI) driver");
+    usb::xhci::init();
+    ok();
+
     print!("\nDEBUG: Start VGA driver");
-    graphics::draw::init();
+    graphics::vga::init();
     ok();
 
     print!("\nDEBUG: Start PCI driver");
     pci::init();
-    ok();
 
     print!("\nDEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();
+    ok();
+
+    print!("\nDEBUG: Test Ext2 filesystem");
+    fs::init();
+    fs::ext2::init();
     ok();
 
     print!("\nxsh>");
@@ -192,10 +216,6 @@ fn handle_alloc_error(layout: Layout) -> ! {
     hlt_loop();
 }
 
-fn system() {
-
-}
-
 fn enable_nxe_bit() {
     use x86::msr::{IA32_EFER, rdmsr, wrmsr};
 
@@ -210,4 +230,8 @@ fn enable_write_protect_bit() {
     use x86::controlregs::{cr0, cr0_write, Cr0};
 
     unsafe { cr0_write(cr0() | Cr0::CR0_WRITE_PROTECT) };
+}
+
+fn system() {
+
 }

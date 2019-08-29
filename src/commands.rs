@@ -3,16 +3,16 @@
 //!And in src/user/input.rs in static commands, change length of array and add a struct command
 //! # Example
 //!```
-//! //In src/commands.rs
-//!pub fn test(){
-//!	println!("test");
+//!// In src/commands.rs
+//!pub fn test() {
+//!    println!("test");
 //!}
 //!```
 //!```
-//! //In src/user/input.rs
+//!// In src/user/input.rs
 //!use crate::commands::test;
 //!let commands: [Command; 1] = [
-//!	Command{cmd: "test".to_string(), function: test},
+//!    Command{cmd: "test".to_string(), function: test},
 //!];
 //!```
 
@@ -43,15 +43,9 @@ pub fn hello_world(_cmd: String){
     println!("\nHello world!");
 }
 
-pub fn startfs(_cmd: String){
-    use crate::fs;
-    fs::fs::fsmain();
-}
-
-pub fn clock(_cmd: String){
-    use time::*;
-	//let day = number_to_day(n.day);
-	unsafe{print!("\n{}:{}:{}", time.hours, time.minutes, time.seconds);}
+pub fn date(_cmd: String){
+    use time::DateTime;
+    println!("{}", DateTime::new());
 }
 
 pub fn user(_cmd: String){
@@ -60,35 +54,35 @@ pub fn user(_cmd: String){
 }
 
 pub fn help(_cmd: String){
-    print!("\nCommands:\n   hello: Print \"Hello world!\"\n   fs: Test fs\n   clock: Print the time since you have started Anix\n   reset: Restart Anix\n   user: (not work)\n   lspci: Print all pci devices\n   mem: Test memory");
+    print!("\nCommands:\n    help: Display this help\n    hello: Print \"Hello world!\"\n    startflame: Start flame (the graphic interface)\n    time: Print the time since you have started Anix\n    user: (not work)\n    lspci: Print all pci devices\n    mem: Test memory");
 }
 
 pub fn lspci(_cmd: String){
-	use crate::pci;
-	pci::list_devices();
+    use crate::pci;
+    pci::list_devices();
 }
 
 pub fn test_mem(_cmd: String){
-	use crate::memory::table;
-	use crate::common::ok;
+    use crate::memory::table;
+    use crate::common::ok;
 
-	print!("\nTEST: Tables");
-	table::test();
-	ok();
+    print!("\nTEST: Tables");
+    table::test();
+    ok();
 
-	print!("\nTEST: Translate VirtAddr to PhysAddr");
-	unsafe{
-		let page = table::ActivePageTable::new();
-		let addr_translated = page.translate(0x20010a).unwrap();
-		ok();
-		print!("\n0xb8000 -> {:#x}", addr_translated);
-	}
+    print!("\nTEST: Translate VirtAddr to PhysAddr");
+    unsafe{
+        let page = table::ActivePageTable::new();
+        let addr_translated = page.translate(0x20010a).unwrap();
+        ok();
+        print!("\n0xb8000 -> {:#x}", addr_translated);
+    }
 }
 
 pub fn startflame(_cmd: String){
-	println!("\nFlame is starting...");
-	
-	crate::graphics::draw::init();
-	
-	println!("Flame say to you hello!!!");
+    println!("\nFlame is starting...");
+
+    // TODO: Jump in userspace, start filesystem and start graphics
+
+    println!("Flame say to you hello!!!");
 }

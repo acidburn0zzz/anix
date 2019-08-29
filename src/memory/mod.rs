@@ -1,3 +1,7 @@
+//! Some code was borrowed from [Phil Opp's Blog](http://os.phil-opp.com/allocating-frames.html)
+
+#![allow(deprecated)]
+
 pub mod paging;
 pub mod table;
 pub mod heap;
@@ -8,6 +12,7 @@ use self::table::ActivePageTable;
 use multiboot2::{MemoryAreaIter, MemoryArea};
 use crate::AREA_FRAME_ALLOCATOR;
 use spin::Mutex;
+use crate::errors::Result;
 
 pub const PAGE_SIZE: usize = 4096;
 
@@ -141,7 +146,7 @@ impl FrameAllocator for AreaFrameAllocator {
 		}
     }
 
-    fn deallocate_frame(&mut self, frame: Frame) {
+    fn deallocate_frame(&mut self, _frame: Frame) {
         unimplemented!()
     }
 }
@@ -176,7 +181,7 @@ pub unsafe fn init(boot_info: &BootInformation) {
 		active_table.map(page, EntryFlags::WRITABLE, &mut area_frame_allocator);
 	}
 
-	AREA_FRAME_ALLOCATOR = Mutex::new(Some(area_frame_allocator));
+	*AREA_FRAME_ALLOCATOR.lock() = Some(area_frame_allocator);
 }
 
 pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> ActivePageTable
@@ -203,7 +208,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
 				continue;
 			}
 
-			println!("\nMapping section at addr: {:#x}, size: {:#x}, flags: {:#?}", section.addr, section.size, section.flags());
+			print!("\nMapping section at addr: {:#x}, size: {:#x}", section.addr, section.size);
 
 			if section.start_address() % PAGE_SIZE != 0{
 				print!("\nSections need to be page aligned!!");
@@ -238,20 +243,25 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
 
 		// Map AHCI structure
 		// TODO: Map with the address given with the PCI device
-		let abar = 0xf6504000;
-		let abar_start = Frame::containing_address(abar);
-		let abar_end = Frame::containing_address(abar + 0x10FF); // Because the end of AHCI structure is at base 0xf6504000 + 0x10FF
+		let abar_start = Frame::containing_address(0xf6504000);
+		let abar_end = Frame::containing_address(0xf9999999);
 
 		for frame in Frame::range_inclusive(abar_start, abar_end) {
 			mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
 		}
+		
+		let ahci_start_2 = Frame::containing_address(0x13000);
+		let ahci_end_2 = Frame::containing_address(0x200000);
 
-		// Map AHCI base
-		let ahci_command_table_base_address = 0x400000;
-		let ahci_command_table_base_address_start = Frame::containing_address(ahci_command_table_base_address);
-		let ahci_command_table_base_address_end = Frame::containing_address(ahci_command_table_base_address + 0x24ff);
+		for frame in Frame::range_inclusive(ahci_start_2, ahci_end_2) {
+			mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
+		}
+		
+		// Map VBE mode info
+		let vbe_info_start = Frame::containing_address(0x5200);
+		let vbe_info_end = Frame::containing_address(0x5200 + 4096);
 
-		for frame in Frame::range_inclusive(ahci_command_table_base_address_start, ahci_command_table_base_address_end) {
+		for frame in Frame::range_inclusive(vbe_info_start, vbe_info_end) {
 			mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
 		}
     });
@@ -263,7 +273,23 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
       old_table.p4_frame.start_address()
     );
     active_table.unmap(old_p4_page, allocator);
-    println!("\nGuard page at {:#x}", old_p4_page.start_address());
 
     active_table
 }
+
+/// Allocate a frame
+pub fn allocate_frames() -> Option<Frame> {
+    unsafe{
+		if let Some(ref mut allocator) = *AREA_FRAME_ALLOCATOR.lock() {
+			return allocator.allocate_frame();
+		} else {
+			panic!("frame allocator not initialized");
+		}
+    }
+}
+
+pub fn physalloc() -> Result<usize>{
+	Ok(allocate_frames().unwrap().start_address() as usize)
+}
+
+// TODO: Make a global mapping function

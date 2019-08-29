@@ -110,3 +110,9 @@ u32 right_shift(u32 number1, u32 number2){
 u8 count_func(u8 header){
 	return header & 0x80 ? 8 : 1;
 }
+
+// KEEP THIS PART!!!
+int bcmp(void *s1, void *s2, uint n) {
+	return 0;
+}
+// --------------

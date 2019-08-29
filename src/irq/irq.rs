@@ -6,36 +6,12 @@ use user::input::{cmd_character, cmd_number};
 use super::syscalls::*;
 
 pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
-	use crate::screen::{WRITER, BUFFER_HEIGHT, BUFFER_WIDTH, ColorCode, Color};
-	use crate::time::*;
-	use crate::scheduler::schedule;
-	
-	//Increment time
-	unsafe{
-		time.deciseconds += 1;
-	
-		if time.deciseconds >= 19{
-			time.seconds += 1;
-			time.deciseconds = 0;
-		}
-	
-		if time.seconds >= 59{
-			time.minutes += 1;
-			time.seconds = 0;
-			time.deciseconds = 0;
-			
-		}
-	
-		if time.minutes >= 59{
-			time.hours += 1;
-			time.minutes = 0;
-			time.seconds = 0;
-			time.deciseconds = 0;
-		}
-		
-		//Call the schedule function for switching task
-		schedule();
-		PICS.lock().notify_end_of_interrupt(TIMER_ID)
+    use crate::scheduler::schedule;
+
+    // Call the schedule function for switching task
+    unsafe {
+        schedule();
+        PICS.lock().notify_end_of_interrupt(TIMER_ID)
     }
 }
 
@@ -59,16 +35,16 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
-					unsafe{cmd_character(character)};
+                    unsafe{cmd_character(character)};
                 },
                 DecodedKey::RawKey(key) => {
-					unsafe{cmd_number(key)};
-				},
-			}
-		}
-	}
-	unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }
-} 
+                    unsafe{cmd_number(key)};
+                },
+            }
+        }
+    }
+    unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }
+}
 pub extern "x86-interrupt" fn cascade_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
     print!("\n\nCascade\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(CASCADE_ID) }
@@ -131,8 +107,7 @@ pub extern "x86-interrupt" fn fpu_interrupt_handler(stack_frame: &mut InterruptS
 
 pub extern "x86-interrupt" fn syscall_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
     print!("\n\nSYSCALL\n{:#?}", stack_frame);
-    unsafe{do_syscall();}
+    unsafe{do_syscall();} // TODO: Manage syscalls
     print!("\nEND OF SYSCALL");
     unsafe { PICS.lock().notify_end_of_interrupt(SYSCALL_ID) }
-    //TODO: Manage syscalls
 }
