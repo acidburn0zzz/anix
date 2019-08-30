@@ -1,20 +1,20 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
+/*
+ * Copyright (C) 2018-2019 Nicolas Fouquet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see https://www.gnu.org/licenses.
+ */
 pub mod scheduler;
-use core::ffi::c_void;
 
 pub static mut CURRENT_PID: usize = 0; // The pid for create a new task
 //TODO: Use a Vec
@@ -88,18 +88,18 @@ impl Task{
 			ebp: 0,
 			state: TaskState::Alive,
 		};
-		
+
 		CURRENT_TASKS[CURRENT_PID] = Some(new_task);
 		CURRENT_PID += 1;
 		new_task
 	}
-	
+
 	pub unsafe fn kill(&self){
 		// TODO: Kill a task with this function
 		//		- Dont use the pid such as tasks array index
 		//		- Create the task on a None or a Dead task
 		//		- Run the task if it is not a Dead task
-		
+
 		//Dont work
 		for selected_task in self.pid..4096 {
 			if CURRENT_TASKS[selected_task as usize] == None {
@@ -116,7 +116,7 @@ impl Task{
 			}
 		}
 	}
-	
+
 	/// Give informations about the task
 	pub fn information(&self){
 		print!("\nTask {} with pid {}\nEip: {} and Ebp: {}\nState: {:?}", self.name, self.pid, self.eip, self.ebp, self.state);

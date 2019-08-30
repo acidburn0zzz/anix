@@ -1,48 +1,31 @@
 /*
-Copyright (C) 2018-2019 Nicolas Fouquet
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
+ * Copyright (C) 2018-2019 Nicolas Fouquet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see https://www.gnu.org/licenses.
+ */
 
 #![no_std]
-#![feature(unsize,coerce_unsized)] // For DST smart pointers
-#![feature(core_intrinsics)] // Intrinsics
-#![feature(box_syntax)] // Enables 'box' syntax
-#![feature(box_patterns)] // Used in boxed::unwrap
-#![feature(thread_local)] // Allows use of thread_local
-#![feature(lang_items)] // Allow definition of lang_items
-#![feature(asm)] // Enables the asm! syntax extension
-#![feature(optin_builtin_traits)] // Negative impls
-#![feature(slice_patterns)] // Slice (array) destructuring patterns, used by multiboot code
-#![feature(linkage)] // allows using #[linkage="external"]
-#![feature(const_fn)] // Allows defining `const fn`
+#![feature(box_syntax)]
+#![feature(thread_local)]
+#![feature(asm)]
+#![feature(const_fn)]
 #![feature(abi_x86_interrupt)]
-#![feature(type_ascription)]
-#![feature(naked_functions)]
-#![feature(rustc_private)]
-#![feature(c_void_variant)]
 #![feature(ptr_internals)]
-#![feature(global_asm)]
-#![feature(custom_attribute)]
-#![feature(dropck_eyepatch)]
-#![feature(panic_info_message)]
 #![feature(const_vec_new)]
-#![feature(slice_index_methods)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 
-#![allow(unused_imports)]
 #![allow(exceeding_bitshifts)]
 #![allow(non_snake_case)]
 
@@ -51,7 +34,6 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 // Crates
 #[macro_use]
 extern crate alloc;
-#[macro_use]
 extern crate spin;
 extern crate x86_64; // WARNING: You must add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
 extern crate lazy_static;
@@ -90,32 +72,29 @@ pub mod graphics; // Display things on screen
 pub mod usb; // USB management
 pub mod io; // IO (memory) management
 
+#[cfg(not(test))]
 use core::panic::PanicInfo;
-use idt::PICS;
-use x86::time::*;
-use memory::*;
-use common::{hlt_loop, ok};
-use x86_64::registers::control::*;
-use memory::AreaFrameAllocator;
-use spin::Mutex;
-use lazy_static::lazy_static;
-use task::*;
-use memory::heap::{HEAP_START, HEAP_SIZE, BumpAllocator};
-use core::alloc::GlobalAlloc;
+#[cfg(not(test))]
 use alloc::alloc::Layout;
+
 use core::sync::atomic::{AtomicUsize, Ordering};
+use spin::Mutex;
+
+use idt::PICS;
+use memory::{*, heap::{HEAP_START, HEAP_SIZE, BumpAllocator}};
+use common::hlt_loop;
+use task::{Task, CURRENT_TASKS, TASK_RUNNING};
 
 #[global_allocator]
 pub static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
-
 pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> = Mutex::new(None);
-
 pub static KERNEL_BASE: AtomicUsize = AtomicUsize::new(0);
 pub static KERNEL_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
 #[no_mangle] // don't mangle the name of this function
+#[cfg(not(test))]
 pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     screen::logo_screen();
 
@@ -124,31 +103,24 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
         multiboot2::load(multiboot_information_address)
     };
 
-    let initrd_start = boot_info.module_tags().next().unwrap().start_address();
     let kernel_start = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr).min().unwrap();
     let kernel_end = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr + s.size).max().unwrap();
 
     KERNEL_BASE.store(kernel_start as usize, Ordering::SeqCst);
     KERNEL_SIZE.store(kernel_end as usize - kernel_start as usize, Ordering::SeqCst);
 
-    // TODO: Change all print!("\n") by println!("")
-
     unsafe {
-        print!("\nDEBUG: init GDT");
+        println!("DEBUG: init GDT");
         gdt::init();
-        ok();
-        print!("\nCS:\n{}\n", x86::segmentation::cs());
     }
 
-    print!("\nDEBUG: init IDT");
+    println!("DEBUG: init IDT");
     idt::init_idt();
-    ok();
 
-    print!("\nDEBUG: init pics");
+    println!("DEBUG: init pics");
     unsafe { PICS.lock().initialize() };
-    ok();
 
-    print!("\nDEBUG: Init memory");
+    println!("DEBUG: Init memory");
     enable_nxe_bit();
     enable_write_protect_bit();
 
@@ -156,63 +128,46 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
         memory::init(boot_info);
     }
 
-    print!("\nDEBUG: set initrd start");
-    unsafe {
-        set_initrd_addr_start(initrd_start);
-    }
-    ok();
-
-    print!("\nDEBUG: Start tasking system");
+    println!("DEBUG: Start tasking system");
 
     unsafe {
         Task::new("system", system as *const () as u32);
 
         TASK_RUNNING = CURRENT_TASKS[0];
     }
-    ok();
 
-    print!("\nDEBUG: Start SATA driver");
+    println!("DEBUG: Start SATA driver");
     disk::sata::init();
-    ok();
 
-    print!("\nDEBUG: Start USB (EHCI) driver");
-    usb::xhci::init();
-    ok();
-
-    print!("\nDEBUG: Start VGA driver");
+    println!("DEBUG: Start VGA driver");
     graphics::vga::init();
-    ok();
 
-    print!("\nDEBUG: Start PCI driver");
+    println!("DEBUG: Start PCI driver");
     pci::init();
 
-    print!("\nDEBUG: enable interrupts");
+    println!("DEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();
-    ok();
 
-    print!("\nDEBUG: Test Ext2 filesystem");
+    println!("DEBUG: Test Ext2 filesystem");
     fs::init();
     fs::ext2::init();
-    ok();
 
-    print!("\nxsh>");
+    print!("xsh>");
 
     hlt_loop();
 }
 
-extern "C" {
-    fn set_initrd_addr_start(addr: u32);
-}
-
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    print!("\n{:#?}", info);
+    println!("{:#?}", info);
     hlt_loop();
 }
 
+#[cfg(not(test))]
 #[alloc_error_handler]
 fn handle_alloc_error(layout: Layout) -> ! {
-    print!("\n{:#?}", layout);
+    println!("\n{:#?}", layout);
     hlt_loop();
 }
 

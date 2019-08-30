@@ -1,18 +1,19 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet 
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
+/*
+ * Copyright (C) 2018-2019 Nicolas Fouquet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see https://www.gnu.org/licenses.
+ */
 
 // The x86-interrupt calling convention leads to the following LLVM error
 // when compiled for a Windows target: "offset is not a multiple of 16". This
@@ -20,23 +21,23 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 // problem we skip compilation of this module on Windows.
 #![cfg(not(windows))]
 
-use crate::{gdt, print, println, irq::irq::*, irq::exceptions::*, irq::irqid::*};
+use crate::{gdt, irq::irq::*, irq::exceptions::*, irq::irqid::*};
 use pic8259_simple::ChainedPics;
-use spin;
-use x86_64::structures::idt::{InterruptStackFrame, InterruptDescriptorTable};
+use spin::Mutex;
+use x86_64::structures::idt::{InterruptDescriptorTable};
 use x86_64::PrivilegeLevel::Ring3;
 use lazy_static::lazy_static;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
-pub static PICS: spin::Mutex<ChainedPics> = spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+pub static PICS: spin::Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        
-        //Exceptions
+
+        // Exceptions
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt.divide_by_zero.set_handler_fn(divide_by_zero_handler);
         idt.debug.set_handler_fn(debug_handler);
@@ -59,24 +60,24 @@ lazy_static! {
         idt.simd_floating_point.set_handler_fn(simd_floating_point_handler);
         idt.virtualization.set_handler_fn(virtualization_handler);
         idt.security_exception.set_handler_fn(security_exception_handler);
-        
-        //Interrupts
+
+        // Interrupts
         idt[usize::from(TIMER_ID)].set_handler_fn(timer_interrupt_handler);
         idt[usize::from(KEYBOARD_ID)].set_handler_fn(keyboard_interrupt_handler);
-        
+
         idt[usize::from(CASCADE_ID)].set_handler_fn(cascade_interrupt_handler);
-		idt[usize::from(COM1_ID)].set_handler_fn(com1_interrupt_handler);
-		idt[usize::from(COM2_ID)].set_handler_fn(com2_interrupt_handler);
-		idt[usize::from(LPT2_ID)].set_handler_fn(lpt2_interrupt_handler);
-		idt[usize::from(FLOPPY_ID)].set_handler_fn(floppy_interrupt_handler);
-		idt[usize::from(LPT1_ID)].set_handler_fn(lpt1_interrupt_handler);
-		idt[usize::from(RTC_ID)].set_handler_fn(rtc_interrupt_handler);
-		idt[usize::from(PCI1_ID)].set_handler_fn(pci1_interrupt_handler);
-		idt[usize::from(PCI2_ID)].set_handler_fn(pci2_interrupt_handler);
-		idt[usize::from(PCI3_ID)].set_handler_fn(pci3_interrupt_handler);
-		idt[usize::from(MOUSE_ID)].set_handler_fn(mouse_interrupt_handler);
-		idt[usize::from(FPU_ID)].set_handler_fn(fpu_interrupt_handler);
-		idt[usize::from(SYSCALL_ID)].set_handler_fn(syscall_interrupt_handler).set_privilege_level(Ring3);
+        idt[usize::from(COM1_ID)].set_handler_fn(com1_interrupt_handler);
+        idt[usize::from(COM2_ID)].set_handler_fn(com2_interrupt_handler);
+        idt[usize::from(LPT2_ID)].set_handler_fn(lpt2_interrupt_handler);
+        idt[usize::from(FLOPPY_ID)].set_handler_fn(floppy_interrupt_handler);
+        idt[usize::from(LPT1_ID)].set_handler_fn(lpt1_interrupt_handler);
+        idt[usize::from(RTC_ID)].set_handler_fn(rtc_interrupt_handler);
+        idt[usize::from(PCI1_ID)].set_handler_fn(pci1_interrupt_handler);
+        idt[usize::from(PCI2_ID)].set_handler_fn(pci2_interrupt_handler);
+        idt[usize::from(PCI3_ID)].set_handler_fn(pci3_interrupt_handler);
+        idt[usize::from(MOUSE_ID)].set_handler_fn(mouse_interrupt_handler);
+        idt[usize::from(FPU_ID)].set_handler_fn(fpu_interrupt_handler);
+        idt[usize::from(SYSCALL_ID)].set_handler_fn(syscall_interrupt_handler).set_privilege_level(Ring3);
         idt
     };
 }

@@ -1,22 +1,22 @@
-/*Copyright (C) 2018-2019 Nicolas Fouquet
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see https://www.gnu.org/licenses.
-*/
-use crate::commands::{blank, hello_world, date, user, lspci, help, test_mem, startflame};
+/*
+ * Copyright (C) 2018-2019 Nicolas Fouquet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see https://www.gnu.org/licenses.
+ */
+use crate::commands::{hello_world, date, user, lspci, help, test_mem, startflame};
 use crate::screen::WRITER;
 use alloc::prelude::v1::{String, ToString};
-use core::ptr;
 use lazy_static::lazy_static;
 use spin::Mutex;
 

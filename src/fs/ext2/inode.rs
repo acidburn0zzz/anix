@@ -1,7 +1,23 @@
+/*
+ * Copyright (C) 2018-2019 Nicolas Fouquet
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see https://www.gnu.org/licenses.
+ */
+
 use crate::fs::ext2::superblock::Superblock;
 use crate::fs::ext2::gd::GDTable;
 use crate::fs::ext2::InodeMode;
-use crate::fs::Partition;
 use crate::disk::sata::read_disk;
 use crate::errors::*;
 use ::read_num_bytes;
@@ -128,7 +144,6 @@ impl Inode {
                 buf = read_disk(block, block + full_size as u64).expect("cannot read disk");
             }
             if buf.as_slice() == [] {
-                println!("Buffer EMPTY");
                 return Err(Error::new(ENXIO));
             }
             else {

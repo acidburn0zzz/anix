@@ -1,15 +1,30 @@
+/*
+Copyright (C) 2015 Philipp Oppermann
+Copyright (C) 2018-2019 Nicolas Fouquet
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see https://www.gnu.org/licenses.
+*/
+
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 use memory::paging::*;
 use memory::paging::ENTRY_COUNT;
 use memory::paging::EntryFlags;
 use memory::FrameAllocator;
-use core::ptr::Unique;
 use memory::Frame;
-use memory::PAGE_SIZE;
 use memory::paging::mapper::Mapper;
 use core::ops::{Deref, DerefMut};
-use crate::paging::temporary_page::TemporaryPage;
 
 pub struct Table<L: TableLevel> {
     entries: [Entry; ENTRY_COUNT],
@@ -65,7 +80,6 @@ impl ActivePageTable {
     }
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
-        use x86_64::PhysAddr;
         use x86::controlregs;
 
         let old_table = InactivePageTable {
