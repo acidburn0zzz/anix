@@ -25,6 +25,7 @@
 #![feature(const_vec_new)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
+#![feature(associated_type_bounds)]
 
 #![allow(exceeding_bitshifts)]
 #![allow(non_snake_case)]
@@ -71,6 +72,9 @@ pub mod drivers; // Drivers management
 pub mod graphics; // Display things on screen
 pub mod usb; // USB management
 pub mod io; // IO (memory) management
+
+#[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
+pub mod serial; // Qemu serial logging
 
 #[cfg(not(test))]
 use core::panic::PanicInfo;
@@ -160,7 +164,7 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{:#?}", info);
+    println!("{:?}", info);
     hlt_loop();
 }
 

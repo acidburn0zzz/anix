@@ -31,7 +31,7 @@ pub mod fis;
 pub mod hba;
 
 /// A global Disk instance for read and write everywhere
-pub static mut DISK: Mutex<Vec<Box<dyn Disk>>> = Mutex::new(Vec::new());
+pub static mut DISKS: Mutex<Vec<Box<dyn Disk>>> = Mutex::new(Vec::new());
 
 pub static S_PCI_DRIVER: PciDriver = PciDriver;
 
@@ -87,7 +87,7 @@ impl SATAController{
         for disk in 0..all_disks.1.len() {
             if all_disks.1[disk].block_length().expect("Could not read block_length") != 0 && all_disks.1[disk].size() != 0 {
                 unsafe {
-                    *DISK.lock() = Vec::from(all_disks.1);
+                    *DISKS.lock() = Vec::from(all_disks.1);
                 }
                 break;
             }
@@ -151,8 +151,14 @@ pub fn read_disk(start: u64, end: u64) -> Result<Vec<u8>>{
     let mut buffer = Vec::with_capacity(size);
     buffer.resize(size + size % 512, 0);
 
+    #[cfg(feature="x86_64-qemu-Anix")]
+    use ::serial_println;
     unsafe {
-        let result = DISK.lock()[0].read(start / 512,
+        serial_println!("Disk {:?}", DISKS.lock()[0].id());
+    }
+
+    unsafe {
+        let result = DISKS.lock()[0].read(start / 512,
                                          &mut buffer.as_mut_slice());
 
         match result {

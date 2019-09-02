@@ -37,12 +37,11 @@ menuentry "Anix" --class anix {\\n\
 	boot\\n\
 }\\n
 
-ARCH=x86_64
+ARCH=x86_64-unknown-linux-gnu
 USBPORT = ""
 ERROR = ""
 sdb = /dev/sdb
 sdc = /dev/sdc
-HERE = $(shell pwd)
 
 ifeq ($(shell test -e $(sdb) && echo -n yes),yes)
 	USBPORT=$(sdb)
@@ -53,6 +52,7 @@ else
 		ERROR = "There are no plugged disk on $(sdb) or $(sdc)"
 	endif
 endif
+
 
 # This task mount an usb device and copy all Anix files on it
 
@@ -72,8 +72,8 @@ compile:
 	@echo "${LIGHTPURPLE}Compile assembly${NORMAL}" | tr -d "'"
 	@sh mk/build.sh $(ARCH)
 	@echo "${LIGHTPURPLE}Compile rust code${NORMAL}" | tr -d "'"
-	@xargo rustc --target x86_64-unknown-linux-gnu -- -L src/output/main.o
-	@cp target/x86_64-unknown-linux-gnu/debug/libAnix.a src/output
+	@RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH)
+	@cp target/$(ARCH)/debug/libAnix.a src/output
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 convert:
@@ -150,24 +150,31 @@ doc:
 	@cargo doc
 	@cargo doc --open
 
-qemu: ARCH=qemu-x86_64
-qemu: compile
-	# TODO: Make this work (grub_install doesn't support ext2) and change assembly (see https://os.phil-opp.com/entering-longmode/#isso-232)
-	dd if=/dev/zero of=build/hdd.img bs=4k count=10000
+qemu: ARCH=x86_64-qemu-Anix
+qemu: compile link grub-config
+	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
+	# @genext2fs -B 4096 -d src/files -U -N 4096 build/hdd.img -b 20000 # Create hdd
+	dd if=/dev/zero of=build/disk.iso count=2000000
+	echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk -u -C2000000 -S63 -H16 build/disk.iso
+	sudo losetup -o1048576 /dev/loop0 build/disk.iso
+	sudo mke2fs /dev/loop0
+	sudo mount -text2 /dev/loop0 build/root
+	sudo cp src/files/* build/root/
+	sudo umount /dev/loop0
+	sudo losetup -d /dev/loop0
 
-	@sudo parted build/hdd.img mklabel msdos
-	@sudo parted build/hdd.img mkpart primary ext2 0 10
+	@sudo chown $(USER):$(USER) build/disk.iso
+	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
+	@sudo mkdir -p build/cdrom_sysroot/boot/grub/themes/breeze
+	@sudo cp -r src/grub/themes/breeze/* build/cdrom_sysroot/boot/grub/themes/breeze
+	@sudo cp src/grub/grub.cfg build/cdrom_sysroot/boot/grub/grub.cfg
+	@sudo cp build/bootimage-Anix.bin build/cdrom_sysroot/boot/Anix.bin
 
-	@sudo mount -o msdos,offset=10485760 build/hdd.img build/root
+	@echo "${LIGHTPURPLE}Create the cdrom${NORMAL}" | tr -d "'"
+	@grub-mkrescue -o build/cdrom.iso build/cdrom_sysroot > /dev/null 2> /dev/null
+	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
-	@sudo mkdir -p build/root/boot/grub/themes/breeze
-	@sudo cp -r src/files/* build/root/
-
-	@sudo grub-install build/hdd.img --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose > "grub_log.txt" 2>&1
-	@sudo cp -r src/grub/themes/breeze/* build/root/boot/grub/themes/breeze
-	@sudo cp src/grub/grub.cfg build/root/boot/grub/grub.cfg
-
-	@sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
-	@sudo umount build/root
-	@sudo parted build/hdd.img set 1 boot on
-	@qemu-system-x86_64 -drive file=build/hdd.img
+	@kvm -cdrom build/cdrom.iso -m 700 -device ahci,id=ahci0\
+		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
+		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
+		-serial stdio -boot d

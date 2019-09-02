@@ -34,3 +34,7 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+
+[features]
+x86_64-unknown-linux-gnu = []
+x86_64-qemu-Anix = []

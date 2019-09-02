@@ -53,6 +53,10 @@ impl<T> Dma<T> {
 
         let virt = /*unsafe { crate::physmap(phys.address, phys.size, crate::PHYSMAP_WRITE)? } as *mut T*/phys.address as *mut T;
 
+        #[cfg(feature="x86_64-qemu-Anix")]
+        use ::serial_println;
+        serial_println!("Write at {:?}", virt);
+
         unsafe { ptr::write(virt, value); }
 
         Ok(Dma {
@@ -63,7 +67,7 @@ impl<T> Dma<T> {
 
     pub fn zeroed() -> Result<Dma<T>> {
         let phys = PhysBox::new(mem::size_of::<T>())?;
-		let virt = /*unsafe { crate::physmap(phys.address, phys.size, crate::PHYSMAP_WRITE)? } as *mut T*/phys.address as *mut T;
+        let virt = /*unsafe { crate::physmap(phys.address, phys.size, crate::PHYSMAP_WRITE)? } as *mut T*/phys.address as *mut T;
         // unsafe { ptr::write_bytes(virt as *mut u8, 0, phys.size); }
         // TODO: Implement virt by convert phys addr to virt addr (see https://stackoverflow.com/questions/40292822/translate-virtual-address-to-physical-address) (now, Anix does not support mapping outside src/memory/mod.rs)
         Ok(Dma {

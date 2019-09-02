@@ -199,7 +199,7 @@ macro_rules! debug {
     ($($arg:tt)*) => {
 		// Save actual color code
 		let old_color = WRITER.lock().color_code;
-		
+
 		WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
 		$crate::print!("DEBUG: {}\n", format_args!($($arg)*));
 		WRITER.lock().color_code = old_color;
@@ -213,7 +213,7 @@ pub fn _print(args: fmt::Arguments) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        WRITER.lock().write_fmt(args).unwrap();
+         WRITER.lock().write_fmt(args).unwrap();
     });
 }
 

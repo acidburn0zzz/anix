@@ -222,10 +222,10 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
 				continue;
 			}
 
-			print!("\nMapping section at addr: {:#x}, size: {:#x}", section.addr, section.size);
+			println!("Mapping section at addr: {:#x}, size: {:#x}", section.addr, section.size);
 
 			if section.start_address() % PAGE_SIZE != 0{
-				print!("\nSections need to be page aligned!!");
+				println!("Sections need to be page aligned!!");
 			}
 
 			let flags = EntryFlags::from_elf_section_flags(section);
@@ -258,19 +258,19 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
 		// Map AHCI structure
 		// TODO: Map with the address given with the PCI device
 		let abar_start = Frame::containing_address(0xf6504000);
-		let abar_end = Frame::containing_address(0xf9999999);
+		let abar_end = Frame::containing_address(0xffffffff);
 
 		for frame in Frame::range_inclusive(abar_start, abar_end) {
 			mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
 		}
-		
+
 		let ahci_start_2 = Frame::containing_address(0x13000);
 		let ahci_end_2 = Frame::containing_address(0x200000);
 
 		for frame in Frame::range_inclusive(ahci_start_2, ahci_end_2) {
 			mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
 		}
-		
+
 		// Map VBE mode info
 		let vbe_info_start = Frame::containing_address(0x5200);
 		let vbe_info_end = Frame::containing_address(0x5200 + 4096);

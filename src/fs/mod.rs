@@ -42,6 +42,10 @@ pub fn init() {
             .expect("failed to read disk")
         );
         let mut partition = if !partition.is_none() {
+            #[cfg(feature="x86_64-qemu-Anix")]
+            use ::serial_println;
+            serial_println!("New partition");
+
             partition.unwrap()
         } else {
             Default::default()
@@ -53,6 +57,10 @@ pub fn init() {
             }
             PartType::LINUX => {
                 // Create superblock
+                #[cfg(feature="x86_64-qemu-Anix")]
+                use ::serial_println;
+                serial_println!("Ext2");
+
                 partition.superblock = Some(Superblock::new(partition.lba_start * 512));
 
                 // TODO: Test magic number
