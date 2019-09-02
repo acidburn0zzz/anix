@@ -44,10 +44,6 @@ impl<T> Io for Mmio<T> where T: Copy + PartialEq + BitAnd<Output = T> + BitOr<Ou
     }
 
     fn write(&mut self, value: T) {
-        #[cfg(feature="x86_64-qemu-Anix")]
-        use ::serial_println;
-        serial_println!("Write MMIO at {:p}", self.value.as_mut_ptr());
-
         unsafe { write_volatile(self.value.as_mut_ptr(), value) };
     }
 }

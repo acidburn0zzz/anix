@@ -1,3 +1,4 @@
+![Anix logo](assets/src/Anix.png)
 # Anix
 
 Anix is an operating system under GPL licence. So, you can modify and redistribute it.
@@ -5,9 +6,28 @@ Anix is an operating system under GPL licence. So, you can modify and redistribu
 ### Installation
 --------------------------
 
-Anix works only on real hardware. You must have an USB key or a portable disk.
-It is easy for install it:
+Anix works on real hardware or in Qemu. if you want to use it on real hardware, you must have an USB key or a portable disk.
 
-*   First, install rust (with [Rustup](https://rustup.rs/)), [gcc](https://gcc.gnu.org/)), make
+#### To install on real hardware:
+*   First, install Rust (with [Rustup](https://rustup.rs/)), make and
+    [Nasm](https://nasm.us) (on Debian or on Ubuntu `sudo apt-get install nasm`)
 *   Second, install [Xargo](https://github.com/japaric/xargo) (by running `cargo install xargo`)
-*   Finally, open a terminal and type `make` in the Anix root
+*   Install the nightly toolchain with Rustup (`rustup toolchain install nightly`) and set it as the default toolchain (`rustup override set nightly` in the Anix root)
+*   Add the rust-src component (`rustup component install rust-src`)
+*   Install lld (on Debian or on Ubuntu open a terminal and type `sudo apt-get install lld`)
+*   Finally, open a terminal and type `make` in the Anix root directory
+
+#### To install in Qemu:
+*   First, install Qemu (on Debian or on Ubuntu open a terminal and type `sudo apt-get install qemu`) and
+    qemu-kvm (on Debian or on Ubuntu open a terminal and type `sudo apt-get
+    install qemu-kvm`)
+*   Then, install Rust (with [Rustup](https://rustup.rs/) (install with the
+    command on the homepage)) and [Xargo](https://github.com/japaric/xargo) (by running `cargo install xargo`)
+    and [Nasm](https://nasm.us) (on Debian or on Ubuntu open a terminal and type `sudo apt-get install nasm`)
+*   Install the nightly toolchain with Rustup (`rustup toolchain install nightly`) and set it as the default toolchain (`rustup override set nightly` in the Anix root)
+*   Add the rust-src component (`rustup component install rust-src`)
+*   Install lld (on Debian or on Ubuntu open a terminal and type `sudo apt-get install lld`)
+*   Install xorriso (on Debian or on Ubuntu open a terminal and type `sudo apt-get install xorriso`)
+*   Finally, type `make qemu` in the Anix root directory
+
+Tested on a Debian GNU/Linux bullseye/sid x86\_64

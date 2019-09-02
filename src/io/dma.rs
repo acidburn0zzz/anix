@@ -53,10 +53,6 @@ impl<T> Dma<T> {
 
         let virt = /*unsafe { crate::physmap(phys.address, phys.size, crate::PHYSMAP_WRITE)? } as *mut T*/phys.address as *mut T;
 
-        #[cfg(feature="x86_64-qemu-Anix")]
-        use ::serial_println;
-        serial_println!("Write at {:?}", virt);
-
         unsafe { ptr::write(virt, value); }
 
         Ok(Dma {

@@ -156,6 +156,10 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     fs::init();
     fs::ext2::init();
 
+    #[cfg(feature="x86_64-qemu-Anix")]
+    serial_println!("Hello world in Qemu console!");
+
+
     print!("xsh>");
 
     hlt_loop();
