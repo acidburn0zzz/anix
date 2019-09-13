@@ -1,56 +1,89 @@
-# Breeze GRUB theme
-#
-# 2018, Gustavo Castro < gustawho [at] disroot [dot] org >
-#
-# Some rights reserved. This work is licensed under a Creative Commons Attribution-ShareAlike 3.0 License.
-#
+# GRUB2 gfxmenu Breeze styled theme.
+# Designed for 1024x768 resolution.
+# Forked from Axion by Legendary Bibo
+# Changed by Andreas Kainz
 
+# Global Property
+title-text: ""
+title-font: "Noto Sans Regular 12"
+title-color: "#000000"
+message-font: "Noto Sans Regular 14"
+message-color: "#FFFFFF"
+message-bg-color: "#f6f6f6"
 desktop-image: "background.png"
+desktop-color: "#000000"
+terminal-box: "menu_bkg_*.png"
+terminal-font: "DejaVu Mono 14"
 
-# colors are taken from the breeze default theme
-title-text: "Select a boot option"
-title-font: "Hack 18"
-title-color: "#eff0f1"
-message-font: "Hack 18"
-message-color: "#eff0f1"
-terminal-font: "Hack 18"
-terminal-box: "terminal_*.png"
-
-+ boot_menu {
-  left = 20%
-  width = 60%
-  top = 33%
-  height = 33%
-
-  menu_pixmap_style = "boot_menu_*.png"
-
-  item_font = "Hack 18"
-  # breeze inactive text color
-  item_color = "#7f8c8d"
-  item_height = 44
-  item_icon_space = 8
-  item_spacing = 2
-
-  selected_item_font = "Hack 18"
-  selected_item_color= "#eff0f1"
-  selected_item_pixmap_style = "select_*.png"
-
-  icon_height = 48
-  icon_width = 48
-
-  scrollbar = true
-  scrollbar_width = 20
-  scrollbar_thumb = "slider_*.png"
+# title
++ hbox {
+		top = 48
+		left = 50%-182
+		width = 366
+		+ label {text = "Select Operating System" color = "#f2f2f2" font = "Noto Sans Regular 32" align = "center"}
 }
 
+# Show the boot menu
++ boot_menu {
+		top = 29%
+		left = 50%-275
+		width = 550
+		height = 42%
+		item_font = "Noto Sans Regular 12"
+		selected_item_font = "Noto Sans Bold 14"
+		item_color = "#f2f2f2"
+		selected_item_color = "#f2f2f2"
+		item_height = 64
+		item_padding = 15
+		item_spacing = 5
+		icon_width = 64
+		icon_height = 64
+		item_icon_space = 20
+		selected_item_pixmap_style= "select_bkg_*.png"
+		menu_pixmap_style = "menu_bkg_*.png"
+		scrollbar = true
+		scrollbar_width = 24
+		scrollbar_thumb = ""
+		scrollbar_frame = ""
+}
+
+# Show a styled horizontal progress bar
 + progress_bar {
-  id = "__timeout__"
-  left = 33%
-  width = 33%
-  top = 73%
-  height = 8
-  show_text = false
-  fg_color = #3daee9
-  bg_color = #31363b
-  border_color = #4d4d4d
+		id = "__timeout__"
+		top = 72%
+		left = 50%-134
+		width = 268
+		height = 24
+		show_text = false
+		font = "Noto Sans Regular 10"
+		text_color = "#f2f2f2"
+		text = ""
+		bar_style = "progress_bar_*.png"
+		highlight_style = "progress_highlight_*.png"
+}
+
+# Show text progress bar
++ progress_bar {
+		id = "__timeout__"
+		top = 75%
+		left = 50%-174
+		height = 24
+		show_text = true
+		font = "Noto Sans Regular 10"
+		text_color = "#f2f2f2"
+		align = "center"
+		text = "@TIMEOUT_NOTIFICATION_LONG@"
+		bar_style = "progress_bar2_*.png"
+}
+
+# Show an informational message.
++ hbox {
+		top = 100%-27
+		left = 50%-182
+		+ label {text = "Enter: " font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
+		+ label {text = "Boot Selection     " font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
+		+ label {text = "E: " font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
+		+ label {text = "Edit Selection     " font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
+		+ label {text = "C: " font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
+		+ label {text = "GRUB Commandline" font = "Noto Sans Regular 12" color = "#31363b" align = "center"}
 }
