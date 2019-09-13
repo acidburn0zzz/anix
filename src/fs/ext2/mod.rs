@@ -67,6 +67,9 @@ pub fn init() {
 
     println!("Content of inode: {}", inode.read(part.lba_start * 512).expect("cannot read the inode"));
 
+
+    let inode = Inode::new(part.lba_start * 512, 2, block_size, superblock, &gdt);
+    inode.get_dir_entries(part.lba_start * 512).expect("cannot get dir entries");
     // TODO: Read directory entries + get inode from path + move the `boot` directory in the `files`
     // directory ànd create `bin`, `usr`, ... + open and close system + resolve random Page Faults
 }

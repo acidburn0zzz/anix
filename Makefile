@@ -153,10 +153,10 @@ qemu: ARCH=x86_64-qemu-Anix
 qemu: clear compile link grub-config
 	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
 	@mkdir -p build/root
-	@dd if=/dev/zero of=build/disk.iso count=2000000
-	@echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk -u -C2000000 -S63 -H16 build/disk.iso # Partition the disk
+	@dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
+	@echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk -u -C2000000 -S63 -H16 build/disk.iso > /dev/null 2> /dev/null # Partition the disk
 	@sudo losetup -o1048576 /dev/loop0 build/disk.iso
-	@sudo mke2fs /dev/loop0 # Create an ext2 filesystem
+	@sudo mke2fs /dev/loop0 > /dev/null 2> /dev/null # Create an ext2 filesystem
 	@sudo mount -text2 /dev/loop0 build/root
 	@sudo cp src/files/* build/root/ # Copy files
 	@sudo umount /dev/loop0
@@ -171,6 +171,7 @@ qemu: clear compile link grub-config
 
 	@echo "${LIGHTPURPLE}Create the cdrom${NORMAL}" | tr -d "'"
 	@grub-mkrescue -o build/cdrom.iso build/cdrom_sysroot > /dev/null 2> /dev/null
+	@sudo chown -R $(USER):$(USER) build/*
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 	@kvm -cdrom build/cdrom.iso -m 700 -device ahci,id=ahci0\

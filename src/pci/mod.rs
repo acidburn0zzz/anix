@@ -374,7 +374,7 @@ fn get_device_type(class: u32) -> String {
 
         // Mass storage controllers
         "0x1000" => "SCSI bus controller".to_string(),
-        "0x1010" => "IDE controller".to_string(),
+        "0x1018" => "IDE controller".to_string(),
         "0x1020" => "Floppy disk controller".to_string(),
         "0x1030" => "IPI bus controller".to_string(),
         "0x1040" => "RAID controller".to_string(),

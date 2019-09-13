@@ -28,6 +28,7 @@ enum BufferKind<'a> {
     Write(&'a [u8]),
 }
 
+#[derive(Copy, Clone)]
 struct Request {
     address: usize,
     total_sectors: usize,
@@ -87,7 +88,7 @@ impl DiskATA {
         //TODO: Go back to interrupt magic
         let use_interrupts = false;
         loop {
-            let mut request = match self.request_opt.take() {
+            let mut request = match self.request_opt {
                 Some(request) => if address == request.address && total_sectors == request.total_sectors {
                     // Keep servicing current request
                     request

@@ -151,12 +151,6 @@ pub fn read_disk(start: u64, end: u64) -> Result<Vec<u8>>{
     let mut buffer = Vec::with_capacity(size);
     buffer.resize(size + size % 512, 0);
 
-    #[cfg(feature="x86_64-qemu-Anix")]
-    use ::serial_println;
-    unsafe {
-        serial_println!("Disk {:?}", DISKS.lock()[0].id());
-    }
-
     unsafe {
         let result = DISKS.lock()[0].read(start / 512,
                                          &mut buffer.as_mut_slice());

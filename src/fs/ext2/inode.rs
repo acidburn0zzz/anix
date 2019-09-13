@@ -114,13 +114,16 @@ impl Inode {
         if self.i_mode & InodeMode::Ext2SIfdir as u16 != 0 {true} else {false}
     }
 
-    pub fn get_dir_entries(&self) -> Vec<DirEntry>{
+    pub fn get_dir_entries(&self, partition_start: u64) -> Result<Vec<DirEntry>>{
+        assert!(self.is_directory() == true);
+
+        let dir = self.read(partition_start).expect("cannot read directory");
         let files = Vec::new();
-        files
+        println!("DIR: {}", dir);
+        Ok(files)
     }
 
     pub fn read(&self, partition_start: u64) -> Result<String> {
-        let full_size = self.i_size;
         if self.i_block[12] != 0 {
             // TODO: Indirect blocks
             Ok("".to_string())
@@ -139,9 +142,9 @@ impl Inode {
                 if self.i_block[i] == 0 {
                     break;
                 }
-                let block = partition_start + 4096 * self.i_block[i] as u64;
+                let addr = partition_start + 4096 * self.i_block[i] as u64;
 
-                buf = read_disk(block, block + full_size as u64).expect("cannot read disk");
+                buf = read_disk(addr, addr + self.i_size as u64).expect("cannot read disk");
             }
             if buf.as_slice() == [] {
                 return Err(Error::new(ENXIO));
