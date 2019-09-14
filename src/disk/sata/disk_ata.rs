@@ -107,6 +107,7 @@ impl DiskATA {
                     }
                 }
             };
+            self.request_opt = None;
 
             // Finish a previously running request
             if let Some(running) = request.running_opt.take() {

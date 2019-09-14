@@ -114,12 +114,12 @@ impl Inode {
         if self.i_mode & InodeMode::Ext2SIfdir as u16 != 0 {true} else {false}
     }
 
-    pub fn get_dir_entries(&self, partition_start: u64) -> Result<Vec<DirEntry>>{
+    pub fn get_dir_entries(&self/*, partition_start: u64*/) -> Result<Vec<DirEntry>>{
         assert!(self.is_directory() == true);
 
-        let dir = self.read(partition_start).expect("cannot read directory");
+        // let dir = self.read(partition_start).expect("cannot read directory");
         let files = Vec::new();
-        println!("DIR: {}", dir);
+        // println!("DIR: {}", dir);
         Ok(files)
     }
 
