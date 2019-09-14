@@ -54,7 +54,6 @@ pub fn init() {
             PartType::LINUX => {
                 // Create superblock
                 partition.superblock = Some(Superblock::new(partition.lba_start * 512));
-                println!("s_inodes_per_groups = {}", partition.superblock.unwrap().data.s_inodes_per_group);
 
                 // TODO: Test magic number
                 println!("| {} | {} | {:?} | {} | {}M",

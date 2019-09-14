@@ -49,12 +49,41 @@ pub struct Inode
     pub _osd2: [u32; 3],    // OS Dependent #2 (Typically fragment info)
 }
 
+#[derive(Debug)]
 pub struct DirEntry {
-    _inode: u32,
-    _len: u16,
-    _name_len: u8,
-    _file_type: u8,
-    _name: String,
+    pub inode:     u32,
+    pub len:       u16,
+    pub name_len:  u8,
+    pub file_type: u8,
+    pub name:      String,
+}
+
+#[derive(Debug)]
+pub enum DirType {
+    Unknown  = 0,
+    RegFile  = 1,
+    Dir      = 2,
+    Chardev  = 3,
+    Blockdev = 4,
+    Fifo     = 5,
+    Sock     = 6,
+    Symlink  = 7,
+}
+
+impl DirType {
+    pub fn new(t: u8) -> DirType {
+        match t {
+            0 => DirType::Unknown,
+            1 => DirType::RegFile,
+            2 => DirType::Dir,
+            3 => DirType::Chardev,
+            4 => DirType::Blockdev,
+            5 => DirType::Fifo,
+            6 => DirType::Sock,
+            7 => DirType::Symlink,
+            _ => DirType::Unknown,
+        }
+    }
 }
 
 impl Inode {
@@ -114,27 +143,52 @@ impl Inode {
         if self.i_mode & InodeMode::Ext2SIfdir as u16 != 0 {true} else {false}
     }
 
-    pub fn get_dir_entries(&self/*, partition_start: u64*/) -> Result<Vec<DirEntry>>{
+    pub fn get_dir_entries(&self, partition_start: u64) -> Result<Vec<DirEntry>>{
         assert!(self.is_directory() == true);
 
-        // let dir = self.read(partition_start).expect("cannot read directory");
-        let files = Vec::new();
-        // println!("DIR: {}", dir);
+        let dirs = self.read(partition_start).expect("cannot read directory");
+        let mut files = Vec::new();
+        let mut total_size: usize = self.i_size as usize;
+        let mut size: usize = 0;
+        while total_size != 0 {
+            let i_num = read_num_bytes!(u32, &dirs[size..size + 4]);
+            let len = read_num_bytes!(u16, &dirs[size + 4..size + 6]);
+            let name_len = read_num_bytes!(u8, &dirs[size + 6..size + 7]);
+            let file_type = read_num_bytes!(u8, &dirs[size + 7..size + 8]);
+            let name = from_utf8(&dirs[size + 8..size + 8 + name_len as usize]).expect("cannot convert to utf-8").to_string();
+
+            let dir = DirEntry{
+                inode: i_num,
+                len: len,
+                name_len: name_len,
+                file_type: file_type,
+                name: name,
+            };
+
+            files.push(dir);
+
+            total_size -= len as usize;
+            size += len as usize;
+        }
         Ok(files)
     }
 
-    pub fn read(&self, partition_start: u64) -> Result<String> {
+    pub fn read_file(&self, partition_start: u64) -> Result<String> {
+        Ok(from_utf8(&self.read(partition_start)?).expect("cannot convert string to utf-8").to_string())
+    }
+
+    pub fn read(&self, partition_start: u64) -> Result<Vec<u8>> {
         if self.i_block[12] != 0 {
             // TODO: Indirect blocks
-            Ok("".to_string())
+            Ok(Vec::new())
         }
         else if self.i_block[13] != 0 {
             // TODO: Bi-indirect blocks
-            Ok("".to_string())
+            Ok(Vec::new())
         }
         else if self.i_block[14] != 0 {
             // TODO: Tri-indirect blocks
-            Ok("".to_string())
+            Ok(Vec::new())
         }
         else {
             let mut buf = Vec::new();
@@ -150,9 +204,7 @@ impl Inode {
                 return Err(Error::new(ENXIO));
             }
             else {
-                let content = from_utf8(&buf)
-                    .expect("cannot create an utf-8 string").to_string();
-                return Ok(content);
+                return Ok(buf);
             }
         }
     }

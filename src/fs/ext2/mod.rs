@@ -22,6 +22,8 @@ pub mod superblock;
 pub mod gd;
 pub mod inode;
 
+use self::inode::DirType;
+
 pub const INODE_ROOT: u32 = 2;
 
 pub enum InodeMode {
@@ -65,11 +67,18 @@ pub fn init() {
     let inode = Inode::new(part.lba_start * 512, 14, block_size, superblock, &gdt);
     println!("Inode in mode {:#x}, with size {}", inode.i_mode, inode.i_size);
 
-    println!("Content of inode: {}", inode.read(part.lba_start * 512).expect("cannot read the inode"));
+    println!("Content of inode: {}", inode.read_file(part.lba_start * 512).expect("cannot read the inode"));
 
 
     let inode = Inode::new(part.lba_start * 512, 2, block_size, superblock, &gdt);
-    inode.get_dir_entries(/*part.lba_start * 512*/).expect("cannot get dir entries");
+    let root_dirs = inode.get_dir_entries(part.lba_start * 512).expect("cannot get dir entries");
+    for dir in root_dirs {
+        match DirType::new(dir.file_type) {
+            DirType::RegFile => println!("FILE: {}", dir.name),
+            DirType::Dir => println!("DIR: {}", dir.name),
+            _ => println!("UNKNOWN"),
+        }
+    }
     // TODO: Read directory entries + get inode from path + move the `boot` directory in the `files`
     // directory ànd create `bin`, `usr`, ... + open and close system + resolve random Page Faults
 }
