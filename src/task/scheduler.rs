@@ -20,6 +20,7 @@
 
 use crate::task::*;
 use x86_64::registers::read_rip;
+use alloc::borrow::ToOwned;
 
 /// Change the current task
 pub unsafe fn schedule(){
@@ -27,13 +28,13 @@ pub unsafe fn schedule(){
     save_registers();
 
     // Change task
-    if CURRENT_TASKS[TASK_RUNNING.unwrap().pid + 1] != None{
+    if (TASK_RUNNING.to_owned().unwrap().pid + 1) < CURRENT_TASKS.len() {
         // Select the next task
-        TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.unwrap().pid + 1];
+        TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.to_owned().unwrap().pid + 1].to_owned();
     }
-    else{
+    else {
         // Come back on the start of the tasks array
-        TASK_RUNNING = CURRENT_TASKS[0];
+        TASK_RUNNING = CURRENT_TASKS[0].to_owned();
     }
 
     // Restore registers
@@ -68,15 +69,15 @@ pub unsafe fn save_registers(){
     eip = read_rip() as u32;
 
     // Copy the registers in the tasks array
-    TASK_RUNNING.unwrap().esp = esp; // Copy the stack
-    TASK_RUNNING.unwrap().eip = eip; // Copy the instruction pointer
-    TASK_RUNNING.unwrap().ebp = ebp; // Copy the control register
+    TASK_RUNNING.to_owned().unwrap().esp = esp; // Copy the stack
+    TASK_RUNNING.to_owned().unwrap().eip = eip; // Copy the instruction pointer
+    TASK_RUNNING.to_owned().unwrap().ebp = ebp; // Copy the control register
 }
 
 /// Restore the state of the registers saved in the tasks array
 pub unsafe fn restore_registers(){
-    let mut esp: u32 = TASK_RUNNING.unwrap().esp;
-    let mut ebp: u32 = TASK_RUNNING.unwrap().ebp;
+    let mut esp: u32 = TASK_RUNNING.to_owned().unwrap().esp;
+    let mut ebp: u32 = TASK_RUNNING.to_owned().unwrap().ebp;
     // TODO: Volatile!!!
 
     // Get the state of the registers
@@ -99,7 +100,7 @@ pub unsafe fn restore_registers(){
 pub unsafe fn run_task(){
     asm!("call rax"
         :
-        : "{rax}"(TASK_RUNNING.unwrap().eip)
+        : "{rax}"(TASK_RUNNING.to_owned().unwrap().eip)
         :
         : "intel", "volatile"
         );

@@ -132,14 +132,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
         memory::init(boot_info);
     }
 
-    println!("DEBUG: Start tasking system");
-
-    unsafe {
-        Task::new("system", system as *const () as u32);
-
-        TASK_RUNNING = CURRENT_TASKS[0];
-    }
-
     println!("DEBUG: Start SATA driver");
     disk::sata::init();
 
@@ -149,9 +141,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     println!("DEBUG: Start PCI driver");
     pci::init();
 
-    println!("DEBUG: enable interrupts");
-    x86_64::instructions::interrupts::enable();
-
     println!("DEBUG: Test Ext2 filesystem");
     fs::init();
     fs::ext2::init();
@@ -159,6 +148,16 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     #[cfg(feature="x86_64-qemu-Anix")]
     serial_println!("Hello world in Qemu console!");
 
+    println!("DEBUG: Start tasking system");
+    unsafe {
+        Task::new("system", system as *const () as u32);
+        Task::new("terminal", user::input::terminal as *const () as u32);
+
+        TASK_RUNNING = CURRENT_TASKS[0];
+    }
+
+    println!("DEBUG: enable interrupts");
+    x86_64::instructions::interrupts::enable();
 
     print!("xsh>");
 
@@ -195,6 +194,4 @@ fn enable_write_protect_bit() {
     unsafe { cr0_write(cr0() | Cr0::CR0_WRITE_PROTECT) };
 }
 
-fn system() {
-
-}
+fn system() {}

@@ -85,7 +85,7 @@ convert:
 link:
 	@# Link assembly and Rust files
 	@echo "${LIGHTPURPLE}Link assembly and Rust files${NORMAL}" | tr -d "'"
-	@ld.lld -o build/bootimage-Anix.bin src/output/multiboot.o src/output/boot.o src/output/long_mode_init.o src/output/task.o src/output/libAnix.a -nostdlib -m elf_x86_64 -error-limit=0 -T src/arch/$(ARCH)/linker.ld > /dev/null 2> /dev/null
+	@ld.lld -o build/bootimage-Anix.bin src/output/* -nostdlib -m elf_x86_64 -error-limit=0 -T src/arch/$(ARCH)/linker.ld > /dev/null 2> /dev/null
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 grub-config:
@@ -150,7 +150,8 @@ doc:
 	@cargo doc --open
 
 qemu: ARCH=x86_64-qemu-Anix
-qemu: clear compile link grub-config
+qemu: prepare-qemu launch-qemu
+prepare-qemu: clear compile link grub-config
 	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
 	@mkdir -p build/root
 	@dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
@@ -174,7 +175,8 @@ qemu: clear compile link grub-config
 	@sudo chown -R $(USER):$(USER) build/*
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
+launch-qemu:
 	@kvm -cdrom build/cdrom.iso -m 700 -device ahci,id=ahci0\
 		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
 		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
-		-serial stdio -boot d
+		-serial stdio -boot d -s

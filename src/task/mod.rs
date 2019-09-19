@@ -14,28 +14,45 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+use alloc::prelude::v1::{Vec, String};
+use alloc::borrow::ToOwned;
+
 pub mod scheduler;
 
-pub static mut CURRENT_PID: usize = 0; // The pid for create a new task
-//TODO: Use a Vec
-pub static mut CURRENT_TASKS: [Option<Task>; 4096] = [None; 4096]; // The array which contains all tasks
-pub static mut TASK_RUNNING: Option<Task> = None; // The pid of the running task
+// TODO: Use lazy_static!
+pub static mut CURRENT_TASKS: Vec<Option<Task>> = Vec::new();
+pub static mut TASK_RUNNING: Option<Task> = None;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState{
-    Alive = 0,
-    Dead = 2,
+    Alive,
+    Dead,
+    Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+#[derive(Debug, Copy, Clone)]
 pub struct Task {
     pub name: &'static str,
-    pub pid: usize,
+    pid: usize,
     pub esp: u32, // Stack pointer
     pub eip: u32, // Instruction pointer (next instruction which will be executed)
     pub ebp: u32,
     pub state: TaskState,
     // TODO: Files used by the task
+}
+
+impl Default for Task {
+    fn default() -> Self{
+        Self {
+            name: "NULL",
+            pid: 65536,
+            esp: 0,
+            eip: 0,
+            ebp: 0,
+            state: TaskState::Unknown,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,42 +95,28 @@ impl Default for Stack{
 }
 
 impl Task{
-    /// Create a new alive task and add it in the tasks array
-    pub unsafe fn new(name: &'static str, addr: u32) -> Self{
-        let new_task = Self{
+    /// Create a new alive task and add it in the tasks Vec
+    pub unsafe fn new(name: &'static str, addr: u32) -> Self {
+        let new_task = Self {
             name: name,
-            pid: CURRENT_PID,
+            pid: CURRENT_TASKS.len(),
             esp: 0,
             eip: addr,
             ebp: 0,
             state: TaskState::Alive,
         };
 
-        CURRENT_TASKS[CURRENT_PID] = Some(new_task);
-        CURRENT_PID += 1;
+        let t = Some(new_task.to_owned());
+        CURRENT_TASKS.push(t);
         new_task
     }
 
     pub unsafe fn kill(&self){
-        // TODO: Kill a task with this function
-        //        - Dont use the pid such as tasks array index
-        //        - Create the task on a None or a Dead task
-        //        - Run the task if it is not a Dead task
-
-        //Dont work
-        for selected_task in self.pid..4096 {
-            if CURRENT_TASKS[selected_task as usize] == None {
-                //No more tasks
-                break;
-            }
-            if CURRENT_TASKS[selected_task as usize].unwrap().pid == 0 {
-                //Nothing to do it is the system task!
-                print!("\nIt is not possible to kill the system task!");
-            }
-            else{
-                CURRENT_TASKS[selected_task as usize] = CURRENT_TASKS[(selected_task + 1) as usize];
-                CURRENT_TASKS[selected_task as usize].unwrap().pid = selected_task;
-            }
+        if self.pid == 0 {
+            println!("It is not possible to kill the system task!");
+        }
+        else {
+            CURRENT_TASKS.remove(self.pid);
         }
     }
 
@@ -128,5 +131,5 @@ impl Task{
 }
 
 pub unsafe fn kill(){
-    TASK_RUNNING.unwrap().kill();
+    TASK_RUNNING.to_owned().unwrap().kill();
 }

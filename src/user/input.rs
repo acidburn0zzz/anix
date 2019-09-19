@@ -16,9 +16,11 @@
  */
 use crate::commands::{hello_world, date, user, lspci, help, test_mem, startflame};
 use crate::screen::WRITER;
-use alloc::prelude::v1::{String, ToString};
+use alloc::prelude::v1::{String, ToString, ToOwned};
 use lazy_static::lazy_static;
 use spin::Mutex;
+use irq::irq::{EVENTS, EventType};
+use task::TASK_RUNNING;
 
 #[derive(Clone)]
 pub struct Input{
@@ -39,37 +41,38 @@ lazy_static! {
     });
 }
 
-pub unsafe fn cmd_character(c: char) {
-    if INPUT.lock().actived == true {
-        // If enter is pressed exec the function
-        if c == '\n'{
-            // Block the input
-            INPUT.lock().actived = false;
+pub fn terminal() {
+    unsafe {
+        for e in &mut *EVENTS.lock() {
+            if e.is_used_by("terminal") == false {
+                if let EventType::Keyboard(c) = e.r#type {
+                    if INPUT.lock().actived == true {
+                        if c == '\n' {
+                            // Block the input
+                            INPUT.lock().actived = false;
 
-            // Do the command
-            detectcmd(INPUT.lock().content.clone());
+                            // Do the command
+                            detectcmd(INPUT.lock().content.to_owned());
 
-            // Show the prompt
-            WRITER.lock().new_line();
-            print!("xsh>");
+                            // Show the prompt
+                            WRITER.lock().new_line();
+                            print!("xsh>");
 
-            // Clear the buffer
-            INPUT.lock().content = "".to_string();
+                            // Clear the buffer
+                            INPUT.lock().content = "".to_string();
 
-            // Reactivate input
-            INPUT.lock().actived = true;
+                            // Reactivate input
+                            INPUT.lock().actived = true;
+                        }
+                        else{
+                            print!("{}", c.to_string());
+                            INPUT.lock().content.push_str(c.to_string().as_str());
+                        }
+                    }
+                }
+                e.mark_as_used(TASK_RUNNING.unwrap());
+            }
         }
-        else{
-            print!("{}", c);
-            INPUT.lock().content.push(c);
-        }
-    }
-}
-
-pub unsafe fn cmd_number(n: pc_keyboard::KeyCode) {
-    if INPUT.lock().actived == true {
-        print!("{:?}", n);
-        INPUT.lock().content.push(n as u8 as char);
     }
 }
 
@@ -91,12 +94,12 @@ pub unsafe fn detectcmd(cmd: String){
     // Find the function in the array of functions
     for c in commands.iter(){
         // If the command selected is the same as the input
-        if cmd.clone().as_str().starts_with(c.cmd.clone().as_str()){
+        if cmd.to_owned().as_str().starts_with(c.cmd.to_owned().as_str()){
             // Call the function
 
             // TODO: Decomment this when we can kill tasks
-            // let cmd_task = Task::new(c.cmd.clone(), (c.function) as *const () as u32);
-            (c.function)(cmd.clone());
+            // let cmd_task = Task::new(c.cmd.to_owned(), (c.function) as *const () as u32);
+            (c.function)(cmd.to_owned());
             // cmd_task.kill();
             is_command_exec = true;
         }

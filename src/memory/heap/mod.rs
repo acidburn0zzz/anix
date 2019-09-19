@@ -20,8 +20,8 @@ use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use spin::Mutex;
 
-pub const HEAP_START: usize = 0o_000_001_000_000_0000;
-pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
+pub const HEAP_START: usize = 0x50000000;
+pub const HEAP_SIZE: usize = 1 * 1024 * 1024;
 
 
 /// A simple allocator that allocates memory linearly and ignores freed memory.

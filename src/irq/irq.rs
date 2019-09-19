@@ -19,8 +19,41 @@ use idt::*;
 use super::irqid::*;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::InterruptStackFrame;
-use user::input::{cmd_character, cmd_number};
 use super::syscalls::*;
+use alloc::prelude::v1::{Vec};
+use spin::Mutex;
+use task::Task;
+
+pub struct Event {
+    pub r#type: EventType,
+    used_by: Task, // TODO: Use just a &'static str with the task name. Use array or Vec<T>?
+}
+
+impl Event {
+    /// Mark the event as used (useful for don't use the same event two times)
+    pub fn mark_as_used(&mut self, task: Task) {
+        self.used_by = task;
+    }
+
+    /// Search if an event is used by a task
+    pub fn is_used_by(&self, task: &'static str) -> bool {
+        if self.used_by.name == task {
+            true
+        }
+        else {
+            false
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum EventType {
+    Keyboard(char),
+}
+
+lazy_static!{
+    pub static ref EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
+}
 
 pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     use crate::task::scheduler::schedule;
@@ -36,7 +69,6 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
     use x86_64::instructions::port::Port;
 
     use pc_keyboard::*;
-    use spin::Mutex;
 
     lazy_static! {
         static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
@@ -49,14 +81,18 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
     let scancode: u8 = unsafe { port.read() };
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
-            match key {
-                DecodedKey::Unicode(character) => {
-                    unsafe{cmd_character(character)};
-                },
-                DecodedKey::RawKey(key) => {
-                    unsafe{cmd_number(key)};
-                },
-            }
+            EVENTS.lock().push(match key {
+                DecodedKey::Unicode(character) =>
+                    Event {
+                        r#type: EventType::Keyboard(character),
+                        used_by: Task::default(),
+                    },
+                DecodedKey::RawKey(key) =>
+                    Event {
+                        r#type: EventType::Keyboard(key as u8 as char),
+                        used_by: Task::default(),
+                    },
+            });
         }
     }
     unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }
