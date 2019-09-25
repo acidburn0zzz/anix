@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use alloc::prelude::v1::{Vec, String};
+use alloc::prelude::v1::{Vec};
 use alloc::borrow::ToOwned;
 
 pub mod scheduler;

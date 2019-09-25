@@ -23,7 +23,7 @@ use super::Frame;
 use bitflags::bitflags;
 use self::temporary_page::TemporaryPage;
 use memory::table::ActivePageTable;
-use multiboot2::ElfSection;
+use multiboot2::{ElfSection, ElfSectionFlags};
 
 pub const ENTRY_COUNT: usize = 512;
 
@@ -47,19 +47,17 @@ bitflags! {
 
 impl EntryFlags {
     pub fn from_elf_section_flags(section: &ElfSection) -> EntryFlags {
-        use multiboot2::{ELF_SECTION_ALLOCATED, ELF_SECTION_WRITABLE,
-            ELF_SECTION_EXECUTABLE};
 
         let mut flags = EntryFlags::empty();
 
-        if section.flags().contains(ELF_SECTION_ALLOCATED) {
+        if section.flags().contains(ElfSectionFlags::ALLOCATED) {
             // section is loaded to memory
             flags = flags | EntryFlags::PRESENT;
         }
-        if section.flags().contains(ELF_SECTION_WRITABLE) {
+        if section.flags().contains(ElfSectionFlags::WRITABLE) {
             flags = flags | EntryFlags::WRITABLE;
         }
-        if !section.flags().contains(ELF_SECTION_EXECUTABLE) {
+        if !section.flags().contains(ElfSectionFlags::EXECUTABLE) {
             flags = flags | EntryFlags::NO_EXECUTE;
         }
 
@@ -86,50 +84,50 @@ impl Entry {
     pub fn set_unused(&mut self) {
         self.0 = 0;
     }
-    
+
     pub fn flags(&self) -> EntryFlags {
-		EntryFlags::from_bits_truncate(self.0)
-	}
+        EntryFlags::from_bits_truncate(self.0)
+    }
 
-	pub fn pointed_frame(&self) -> Option<Frame> {
-		if self.flags().contains(EntryFlags::PRESENT) {
-			Some(Frame::containing_address(
-				self.0 as usize & 0x000fffff_fffff000
-			))
-		} else {
-			None
-		}
-	}
+    pub fn pointed_frame(&self) -> Option<Frame> {
+        if self.flags().contains(EntryFlags::PRESENT) {
+            Some(Frame::containing_address(
+                self.0 as usize & 0x000fffff_fffff000
+            ))
+        } else {
+            None
+        }
+    }
 
-	pub fn set(&mut self, frame: Frame, flags: EntryFlags) {
-		//assert!(frame.start_address() & !0x000fffff_fffff000 == 0);
-		self.0 = (frame.start_address() as u64) | flags.bits();
-	}
+    pub fn set(&mut self, frame: Frame, flags: EntryFlags) {
+        //assert!(frame.start_address() & !0x000fffff_fffff000 == 0);
+        self.0 = (frame.start_address() as u64) | flags.bits();
+    }
 }
 
 impl Page{
-	pub fn containing_address(address: VirtualAddress) -> Self {
-		assert!(address < 0x0000_8000_0000_0000 || address >= 0xffff_8000_0000_0000, "invalid address: 0x{:x}", address);
-		Self { number: address / PAGE_SIZE }
-	}
-	
-	pub fn start_address(&self) -> usize {
-		self.number * PAGE_SIZE
-	}
-	
-	pub fn p4_index(&self) -> usize {
-		(self.number >> 27) & 0o777
-	}
-	pub fn p3_index(&self) -> usize {
-		(self.number >> 18) & 0o777
-	}
-	pub fn p2_index(&self) -> usize {
-		(self.number >> 9) & 0o777
-	}
-	pub fn p1_index(&self) -> usize {
-		(self.number >> 0) & 0o777
-	}
-	pub fn range_inclusive(start: Page, end: Page) -> PageIter {
+    pub fn containing_address(address: VirtualAddress) -> Self {
+        assert!(address < 0x0000_8000_0000_0000 || address >= 0xffff_8000_0000_0000, "invalid address: 0x{:x}", address);
+        Self { number: address / PAGE_SIZE }
+    }
+
+    pub fn start_address(&self) -> usize {
+        self.number * PAGE_SIZE
+    }
+
+    pub fn p4_index(&self) -> usize {
+        (self.number >> 27) & 0o777
+    }
+    pub fn p3_index(&self) -> usize {
+        (self.number >> 18) & 0o777
+    }
+    pub fn p2_index(&self) -> usize {
+        (self.number >> 9) & 0o777
+    }
+    pub fn p1_index(&self) -> usize {
+        (self.number >> 0) & 0o777
+    }
+    pub fn range_inclusive(start: Page, end: Page) -> PageIter {
         PageIter {
             start: start,
             end: end,

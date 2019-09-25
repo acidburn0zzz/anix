@@ -7,6 +7,6 @@
 # Builded files
 /build/
 /assets/build/
-/src/output/
+src/output/
 
 .directory

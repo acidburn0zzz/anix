@@ -39,19 +39,19 @@ SECTIONS {
 		*(.tdata .tdata.*)
 		. = ALIGN(4K);
 	}
-	
+
 	.tbss : ALIGN(4K)
 	{
 		*(.tbss .tbss.*)
 		. = ALIGN(4K);
 	}
-	
+
 	.got : ALIGN(4K)
 	{
 		*(.got)
 		. = ALIGN(4K);
 	}
-	
+
 	.bss : ALIGN(4K)
 	{
 		*(.bss .bss.*)
@@ -63,19 +63,19 @@ SECTIONS {
 		*(.eh_frame)
 		. = ALIGN(4K);
 	}
-	
+
 	.fini : ALIGN(4K)
 	{
 		*(.fini)
 		. = ALIGN(4K);
 	}
-	
+
 	.data : ALIGN(4K)
 	{
 		*(.data .data.*)
 		. = ALIGN(4K);
 	}
-	
+
 	.data.rel.ro : ALIGN(4K) {
 		*(.data.rel.ro.local*) *(.data.rel.ro .data.rel.ro.*)
 	}
@@ -90,4 +90,4 @@ SECTIONS {
 		*(.gcc_except_table)
 		. = ALIGN(4K);
 	}
-} 
+}

@@ -26,6 +26,7 @@
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 #![feature(associated_type_bounds)]
+#![feature(naked_functions)]
 
 #![allow(exceeding_bitshifts)]
 #![allow(non_snake_case)]
@@ -49,6 +50,7 @@ extern crate multiboot2;
 extern crate byteorder;
 extern crate genio;
 extern crate plain;
+extern crate ux;
 #[macro_use]
 extern crate once;
 
@@ -81,7 +83,6 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 use alloc::alloc::Layout;
 
-use core::sync::atomic::{AtomicUsize, Ordering};
 use spin::Mutex;
 
 use idt::PICS;
@@ -92,8 +93,7 @@ use task::{Task, CURRENT_TASKS, TASK_RUNNING};
 #[global_allocator]
 pub static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
 pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> = Mutex::new(None);
-pub static KERNEL_BASE: AtomicUsize = AtomicUsize::new(0);
-pub static KERNEL_SIZE: AtomicUsize = AtomicUsize::new(0);
+pub static mut VBE_BUFFER: Mutex<u32> = Mutex::new(0);
 
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
@@ -103,15 +103,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     screen::logo_screen();
 
     println!("Welcome!\nAnix is starting...");
-    let boot_info = unsafe {
-        multiboot2::load(multiboot_information_address)
-    };
-
-    let kernel_start = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr).min().unwrap();
-    let kernel_end = boot_info.elf_sections_tag().unwrap().sections().map(|s| s.addr + s.size).max().unwrap();
-
-    KERNEL_BASE.store(kernel_start as usize, Ordering::SeqCst);
-    KERNEL_SIZE.store(kernel_end as usize - kernel_start as usize, Ordering::SeqCst);
 
     unsafe {
         println!("DEBUG: init GDT");
@@ -128,19 +119,29 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     enable_nxe_bit();
     enable_write_protect_bit();
 
+
     unsafe {
-        memory::init(boot_info);
+        let boot_info = multiboot2::load(multiboot_information_address);
+
+        memory::init(
+            boot_info.start_address(),
+            boot_info.end_address(),
+            boot_info.elf_sections_tag().expect("cannot get elf sections tag"),
+            boot_info.memory_map_tag().expect("Memory map tag required").memory_areas()
+        );
+        *VBE_BUFFER.lock() = boot_info.vbe_info_tag().unwrap().mode_info.framebuffer_base_ptr;
     }
 
     println!("DEBUG: Start SATA driver");
     disk::sata::init();
 
-    println!("DEBUG: Start VGA driver");
-    graphics::vga::init();
+    println!("DEBUG: Start VBE driver");
+    graphics::vbe::init();
 
     println!("DEBUG: Start PCI driver");
     pci::init();
 
+    // TODO: Use the multiboot crate to determinate the disk which will be read and write
     println!("DEBUG: Test Ext2 filesystem");
     fs::init();
     fs::ext2::init();
@@ -158,6 +159,8 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
 
     println!("DEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();
+
+    user::switch::init_user();
 
     print!("xsh>");
 

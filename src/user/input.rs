@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+#![allow(irrefutable_let_patterns)]
 use crate::commands::{hello_world, date, user, lspci, help, test_mem, startflame};
 use crate::screen::WRITER;
 use alloc::prelude::v1::{String, ToString, ToOwned};

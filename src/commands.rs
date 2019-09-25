@@ -71,13 +71,16 @@ pub fn test_mem(_cmd: String) {
     print!("\nTEST: Translate VirtAddr to PhysAddr");
     unsafe{
         let page = table::ActivePageTable::new();
-        let addr_translated = page.translate(0x20010a).unwrap();
+        let addr_translated = page.translate(0xb8000).unwrap();
         print!("\n0xb8000 -> {:#x}", addr_translated);
     }
 }
 
 pub fn startflame(_cmd: String) {
+    use graphics::vbe;
     println!("\nFlame is starting...");
+
+    vbe::init();
 
     // TODO: Jump in userspace, start filesystem and start graphics
 

@@ -21,11 +21,10 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 pub mod paging;
 pub mod table;
 pub mod heap;
-use multiboot2::BootInformation;
 use self::paging::{EntryFlags, Page, InactivePageTable, PhysicalAddress};
 use self::paging::temporary_page::TemporaryPage;
 use self::table::ActivePageTable;
-use multiboot2::{MemoryAreaIter, MemoryArea};
+use multiboot2::{MemoryAreaIter, MemoryArea, ElfSectionsTag};
 use crate::AREA_FRAME_ALLOCATOR;
 use crate::errors::Result;
 
@@ -89,22 +88,22 @@ pub struct AreaFrameAllocator {
     multiboot_end: Frame,
 }
 
-impl AreaFrameAllocator{
+impl AreaFrameAllocator {
     fn choose_next_area(&mut self) {
         self.current_area = self.areas.clone().filter(|area| {
-            let address = area.base_addr + area.length - 1;
+            let address = area.start_address() + area.size() - 1;
             Frame::containing_address(address as usize) >= self.next_free_frame
-        }).min_by_key(|area| area.base_addr);
+        }).min_by_key(|area| area.start_address());
 
         if let Some(area) = self.current_area {
-            let start_frame = Frame::containing_address(area.base_addr as usize);
+            let start_frame = Frame::containing_address(area.start_address() as usize);
             if self.next_free_frame < start_frame {
                 self.next_free_frame = start_frame;
             }
         }
     }
 
-    pub fn new(kernel_start: usize, kernel_end: usize,
+    pub fn new<'a>(kernel_start: usize, kernel_end: usize,
       multiboot_start: usize, multiboot_end: usize,
       memory_areas: MemoryAreaIter) -> AreaFrameAllocator
     {
@@ -132,7 +131,7 @@ impl FrameAllocator for AreaFrameAllocator {
 
             // the last frame of the current area
             let current_area_last_frame = {
-                let address = area.base_addr + area.length - 1;
+                let address = area.start_address() + area.size() - 1;
                 Frame::containing_address(address as usize)
             };
 
@@ -166,25 +165,23 @@ impl FrameAllocator for AreaFrameAllocator {
     }
 }
 
-pub unsafe fn init(boot_info: &BootInformation) {
+pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
+                   memory_areas: MemoryAreaIter) {
     assert_has_not_been_called!("memory::init must be called only once");
 
-    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
-    let elf_sections_tag = boot_info.elf_sections_tag().expect("Elf sections tag required");
-
-    let kernel_start = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.addr).min().unwrap();
-    let kernel_end = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.addr + s.size).max().unwrap();
+    let kernel_start = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.start_address()).min().unwrap();
+    let kernel_end = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.start_address() + s.size()).max().unwrap();
 
     println!("\nKernel start: {:#x}, Kernel end: {:#x}", kernel_start, kernel_end);
-    println!("\nMultiboot start: {:#x}, Multiboot end: {:#x}", boot_info.start_address(), boot_info.end_address());
+    println!("\nMultiboot start: {:#x}, Multiboot end: {:#x}", start, end);
 
     let mut area_frame_allocator = AreaFrameAllocator::new(
         kernel_start as usize, kernel_end as usize,
-        boot_info.start_address(), boot_info.end_address(),
-        memory_map_tag.memory_areas()
+        start, end,
+        memory_areas
     );
 
-    let mut active_table = remap_the_kernel(&mut area_frame_allocator, boot_info);
+    let mut active_table = remap_the_kernel(&mut area_frame_allocator, start, end, elf_sections_tag);
 
     use {HEAP_START, HEAP_SIZE};
 
@@ -198,9 +195,9 @@ pub unsafe fn init(boot_info: &BootInformation) {
     *AREA_FRAME_ALLOCATOR.lock() = Some(area_frame_allocator);
 }
 
-pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> ActivePageTable
-    where A: FrameAllocator
-{
+pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
+                           end: usize, elf_sections_tag: ElfSectionsTag)
+                           -> ActivePageTable where A: FrameAllocator {
    let mut temporary_page = TemporaryPage::new(Page { number: 0xcafebabe },
         allocator);
 
@@ -211,9 +208,6 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
     };
 
     active_table.with(&mut new_table, &mut temporary_page, |mapper| {
-        let elf_sections_tag = boot_info.elf_sections_tag()
-            .expect("Memory map tag required");
-
         // Map allocated kernel sections
         for section in elf_sections_tag.sections() {
 
@@ -222,16 +216,16 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
                 continue;
             }
 
-            println!("Mapping section at addr: {:#x}, size: {:#x}", section.addr, section.size);
+            println!("Mapping section at addr: {:#x}, size: {:#x}", section.start_address(), section.size());
 
-            if section.start_address() % PAGE_SIZE != 0{
+            if section.start_address() % PAGE_SIZE as u64 != 0{
                 println!("Sections need to be page aligned!!");
             }
 
-            let flags = EntryFlags::from_elf_section_flags(section);
+            let flags = EntryFlags::from_elf_section_flags(&section);
 
-            let start_frame = Frame::containing_address(section.start_address());
-            let end_frame = Frame::containing_address(section.end_address() - 1);
+            let start_frame = Frame::containing_address(section.start_address() as usize);
+            let end_frame = Frame::containing_address(section.end_address() as usize - 1);
             for frame in Frame::range_inclusive(start_frame, end_frame) {
                 mapper.identity_map(frame, flags, allocator);
             }
@@ -242,15 +236,15 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
         mapper.identity_map(vga_buffer_frame, EntryFlags::WRITABLE, allocator);
 
         // Map VGA Frame Buffer
-        let vga_frame_buffer_start = Frame::containing_address(0xA0000);
-        let vga_frame_buffer_end = Frame::containing_address(0xA0000 + 320 * 230);
+        let vga_frame_buffer_start = Frame::containing_address(0xa0000);
+        let vga_frame_buffer_end = Frame::containing_address(0xa0000 + 1280 * 1025 * 4);
         for frame in Frame::range_inclusive(vga_frame_buffer_start, vga_frame_buffer_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
         }
 
         // Map multiboot structure
-        let multiboot_start = Frame::containing_address(boot_info.start_address());
-        let multiboot_end = Frame::containing_address(boot_info.end_address() - 1);
+        let multiboot_start = Frame::containing_address(start);
+        let multiboot_end = Frame::containing_address(end - 1);
         for frame in Frame::range_inclusive(multiboot_start, multiboot_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT, allocator);
         }
@@ -271,14 +265,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, boot_info: &BootInformation) -> Ac
             mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
         }
 
-        // Map VBE mode info
-        let vbe_info_start = Frame::containing_address(0x5200);
-        let vbe_info_end = Frame::containing_address(0x5200 + 4096);
-
-        for frame in Frame::range_inclusive(vbe_info_start, vbe_info_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
-        }
-    });
+     });
 
     let old_table = active_table.switch(new_table);
 

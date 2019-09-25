@@ -1,4 +1,4 @@
-; Copyright (C) 2018-2019 Nicolas Fouquet 
+; Copyright (C) 2018-2019 Nicolas Fouquet
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -21,11 +21,23 @@ header_start:
     ; checksum
     dd 0x100000000 - (0xe85250d6 + 0 + (header_end - header_start))
 
-    ; insert optional multiboot tags here
+    align 8
 
+video_tag:
+    dw 5                            ; video tag id
+    dw 0                            ; flags
+    dd video_tag_end - video_tag    ; size
+    dd 1280                         ; width
+    dd 1024                         ; height
+    dd 0x1000000                    ; depth
+video_tag_end:
+
+    align 8
+
+tag_end_start:
     ; required end tag
     dw 0    ; type
     dw 0    ; flags
     dd 8    ; size
+tag_end_end:
 header_end:
-
