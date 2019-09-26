@@ -156,27 +156,25 @@ prepare-qemu: clear compile link grub-config
 	@mkdir -p build/root
 	@dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
 	@echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk -u -C2000000 -S63 -H16 build/disk.iso > /dev/null 2> /dev/null # Partition the disk
-	@sudo losetup -o1048576 /dev/loop0 build/disk.iso
-	@sudo mke2fs /dev/loop0 > /dev/null 2> /dev/null # Create an ext2 filesystem
-	@sudo mount -text2 /dev/loop0 build/root
-	@sudo cp src/files/* build/root/ # Copy files
-	@sudo umount /dev/loop0
+
+	@sudo losetup /dev/loop0 build/disk.iso
+	@sudo losetup -o1048576 /dev/loop1 build/disk.iso
+	@sudo mke2fs /dev/loop1 # Create an ext2 filesystem
+	@sudo mount /dev/loop1 build/root
+
+	@sudo cp -r src/root/* build/root/ # Copy files
+	@sudo grub-install --root-directory=build/root --boot-directory=build/root/boot --no-floppy --modules="normal part_msdos ext2 multiboot biosdisk" /dev/loop0
+	@sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
+
+	@sudo umount /dev/loop1
 	@sudo losetup -d /dev/loop0
+	@sudo losetup -d /dev/loop1
 
 	@sudo chown $(USER):$(USER) build/disk.iso
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
-	@sudo mkdir -p build/cdrom_sysroot/boot/grub/themes/breeze
-	@sudo cp -r src/grub/themes/breeze/* build/cdrom_sysroot/boot/grub/themes/breeze
-	@sudo cp src/grub/grub.cfg build/cdrom_sysroot/boot/grub/grub.cfg
-	@sudo cp build/bootimage-Anix.bin build/cdrom_sysroot/boot/Anix.bin
-
-	@echo "${LIGHTPURPLE}Create the cdrom${NORMAL}" | tr -d "'"
-	@grub-mkrescue -o build/cdrom.iso build/cdrom_sysroot > /dev/null 2> /dev/null
-	@sudo chown -R $(USER):$(USER) build/*
-	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 launch-qemu:
-	@kvm -cdrom build/cdrom.iso -m 700 -device ahci,id=ahci0\
+	@kvm -m 700 -device ahci,id=ahci0\
 		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
 		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
 		-serial stdio -boot d -s

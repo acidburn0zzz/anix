@@ -64,11 +64,10 @@ pub fn init() {
     let gdt = GDTable::new(part.lba_start * 512 + block_size as u64, block_size);
 
     // TODO: Just pass a Partition struct
-    let inode = Inode::new(part.lba_start * 512, 14, block_size, superblock, &gdt);
-    println!("Inode in mode {:#x}, with size {}", inode.i_mode, inode.i_size);
+    // let inode = Inode::new(part.lba_start * 512, 15619, block_size, superblock, &gdt);
+    // println!("Inode in mode {:#x}, with size {}", inode.i_mode, inode.i_size);
 
-    println!("Content of inode: {}", inode.read_file(part.lba_start * 512).expect("cannot read the inode"));
-
+    // println!("Content of inode: {}", inode.read_file(part.lba_start * 512).expect("cannot read the inode"));
 
     let inode = Inode::new(part.lba_start * 512, 2, block_size, superblock, &gdt);
     let root_dirs = inode.get_dir_entries(part.lba_start * 512).expect("cannot get dir entries");

@@ -38,8 +38,8 @@ impl Shapes {
                         *buf.offset((y * 1024 + x) as isize) = color.to_u32()
                     },
                     Shapes::Rect {x, y, w, h, color} => {
-                        for height in *y..*h {
-                            for width in *x..*w {
+                        for height in *y..(*h + *y) {
+                            for width in *x..(*w + *x) {
                                 Shapes::Point {x: width, y: height, color: *color}.draw();
                             }
                         }
