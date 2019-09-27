@@ -15,9 +15,9 @@
 
 . mk/colors.sh
 # Compile assembly code
-for asm in $(ls "src/arch/$1/asm" | grep ".asm") ; do
-	echo "    ${ORANGE}Compile src/arch/$1/asm/$asm${NORMAL}" | tr -d "'"
-	nasm -f elf64 "src/arch/$1/asm/$asm" -o "src/output/${asm%.asm}.o"
+for asm in $(ls "kernel/src/arch/$1/asm" | grep ".asm") ; do
+	echo "    ${ORANGE}Compile kernel/src/arch/$1/asm/$asm${NORMAL}" | tr -d "'"
+	nasm -f elf64 "kernel/src/arch/$1/asm/$asm" -o "kernel/src/output/${asm%.asm}.o"
 done
 
 echo "${GREEN}Success!${NORMAL}" | tr -d "'"

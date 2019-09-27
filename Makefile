@@ -61,7 +61,7 @@ endif
 # 	- Format the partition in ext2: run ´sudo mkfs.ext2 /dev/sdb1´ or use Gparted (Click on the partition->Format in->Ext2)
 # 	- If there is an error with #![feature(try_from)] and x86_64 crate it is normal! Add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
 
-all: msg clear compile convert link grub-config test-errors mount copy umount set-bootable
+all: msg clear compile link test-errors mount copy umount set-bootable
 
 msg:
 	@echo "${RED}MAKE SURE THAT YOU DONT HAVE PLUGGED TWO DEVICES!${NORMAL}" | tr -d "'"
@@ -72,26 +72,14 @@ compile:
 	@echo "${LIGHTPURPLE}Compile assembly${NORMAL}" | tr -d "'"
 	@sh mk/build.sh $(ARCH)
 	@echo "${LIGHTPURPLE}Compile rust code${NORMAL}" | tr -d "'"
-	@RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH)
-	@cp target/$(ARCH)/debug/libAnix.a src/output
-	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
-
-convert:
-	@# Convert and copy images
-	@echo "${LIGHTPURPLE}Convert and copy images${NORMAL}" | tr -d "'"
-	@sh mk/images.sh
+	@cd kernel ; RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH) ; cd ..
+	@cp kernel/target/$(ARCH)/debug/libAnix.a kernel/src/output
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 link:
 	@# Link assembly and Rust files
 	@echo "${LIGHTPURPLE}Link assembly and Rust files${NORMAL}" | tr -d "'"
-	@ld.lld -o build/bootimage-Anix.bin src/output/* -nostdlib -m elf_x86_64 -error-limit=0 -T src/arch/$(ARCH)/linker.ld > /dev/null 2> /dev/null
-	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
-
-grub-config:
-	@# Create grub config file
-	@echo "${LIGHTPURPLE}Create GRUB config${NORMAL}" | tr -d "'"
-	@$(SHELL) -c "echo '$(GRUBCONFIG)'" > src/grub/grub.cfg | sed -e 's/^ //'
+	@ld.lld -o build/bootimage-Anix.bin kernel/src/output/* -nostdlib -m elf_x86_64 -error-limit=0 -T kernel/src/arch/$(ARCH)/linker.ld > /dev/null 2> /dev/null
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 test-errors:
@@ -112,10 +100,8 @@ copy:
 	@# Copy files in device
 	@echo "${LIGHTPURPLE}Copy files${NORMAL}" | tr -d "'"
 	@sudo mkdir -p build/root/boot/grub/themes/breeze
-	@sudo cp -r src/files/* build/root/
+	@sudo cp -r root/* build/root/
 	@sudo grub-install $(USBPORT) --target=i386-pc --boot-directory="build/root/boot" --force --allow-floppy --verbose > "grub_log.txt" 2>&1
-	@sudo cp -r src/grub/themes/breeze/* build/root/boot/grub/themes/breeze
-	@sudo cp src/grub/grub.cfg build/root/boot/grub/grub.cfg
 	@sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
@@ -131,14 +117,10 @@ set-bootable:
 clear:
 	@# Delete files
 	@rm -rf build
-	@rm -rf assets/build
-	@rm -rf src/output
-	@rm -f src/grub/grub.cfg
+	@rm -rf kernel/src/output
 
 	@mkdir build
-	@mkdir assets/build
-	@mkdir -p src/output
-	@touch src/grub/grub.cfg
+	@mkdir -p kernel/src/output
 
 clean: clear
 	# Clear Rust compiled files
@@ -151,7 +133,7 @@ doc:
 
 qemu: ARCH=x86_64-qemu-Anix
 qemu: prepare-qemu launch-qemu
-prepare-qemu: clear compile link grub-config
+prepare-qemu: clear compile link
 	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
 	@mkdir -p build/root
 	@dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
@@ -159,11 +141,11 @@ prepare-qemu: clear compile link grub-config
 
 	@sudo losetup /dev/loop0 build/disk.iso
 	@sudo losetup -o1048576 /dev/loop1 build/disk.iso
-	@sudo mke2fs /dev/loop1 # Create an ext2 filesystem
+	@sudo mke2fs /dev/loop1 > /dev/null 2> /dev/null # Create an ext2 filesystem
 	@sudo mount /dev/loop1 build/root
 
-	@sudo cp -r src/root/* build/root/ # Copy files
-	@sudo grub-install --root-directory=build/root --boot-directory=build/root/boot --no-floppy --modules="normal part_msdos ext2 multiboot biosdisk" /dev/loop0
+	@sudo cp -r root/* build/root/ # Copy files
+	@sudo grub-install --root-directory=build/root --boot-directory=build/root/boot --no-floppy --modules="normal part_msdos ext2 multiboot biosdisk" /dev/loop0 > "grub_log.txt" 2>&1
 	@sudo cp build/bootimage-Anix.bin build/root/boot/Anix.bin
 
 	@sudo umount /dev/loop1
