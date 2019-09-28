@@ -56,7 +56,7 @@ endif
 
 # This task mount an usb device and copy all Anix files on it
 
-# WARNING: If you are running this script for the first time
+# WARNING: If you are running this script for the first time on a real disk
 # 	- Create a msdos label on your partition: run ´sudo parted /dev/sdb mklabel msdos´ or use Gparted (Partition->New->Msdos)
 # 	- Format the partition in ext2: run ´sudo mkfs.ext2 /dev/sdb1´ or use Gparted (Click on the partition->Format in->Ext2)
 # 	- If there is an error with #![feature(try_from)] and x86_64 crate it is normal! Add #![feature(try_from)] to the crate x86_64 0.6.0 (in ~/.cargo/registry/src/.../x86_64-0.6.0/src/lib.rs)
@@ -72,7 +72,7 @@ compile:
 	@echo "${LIGHTPURPLE}Compile assembly${NORMAL}" | tr -d "'"
 	@sh mk/build.sh $(ARCH)
 	@echo "${LIGHTPURPLE}Compile rust code${NORMAL}" | tr -d "'"
-	@cd kernel ; RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH) ; cd ..
+	@cd kernel && RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH) && cd ..
 	@cp kernel/target/$(ARCH)/debug/libAnix.a kernel/src/output
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
@@ -156,7 +156,7 @@ prepare-qemu: clear compile link
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 launch-qemu:
-	@kvm -m 700 -device ahci,id=ahci0\
+	@kvm -m 4G -device ahci,id=ahci0\
 		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
 		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
 		-serial stdio -boot d -s

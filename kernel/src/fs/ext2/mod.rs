@@ -14,18 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use alloc::borrow::ToOwned;
-
-use crate::fs::PARTITIONS;
 use self::gd::*;
-use self::inode::*;
-use fs::partitions::Partition;
 use fs::ext2::superblock::Superblock;
 pub mod superblock;
 pub mod gd;
 pub mod inode;
-
-use self::inode::DirType;
+pub mod file;
 
 pub const INODE_ROOT: u32 = 2;
 
@@ -58,50 +52,24 @@ pub enum InodeRight {
     Ext2SIxoth = 0x0001, /* execute */
 }
 
-pub fn init() {
-    let part = &PARTITIONS.lock()[0];
-    let superblock = part.superblock.unwrap();
-    let block_size = 1024 << superblock.data.s_log_block_size;
-
-    // TODO: Include this variables in the Partition struct
-    let gdt = GDTable::new(part.lba_start * 512 + block_size as u64, block_size);
-
-    // TODO: Just pass a Partition struct
-    // let inode = Inode::new(part.lba_start * 512, 15619, block_size, superblock, &gdt);
-    // println!("Inode in mode {:#x}, with size {}", inode.i_mode, inode.i_size);
-
-    // println!("Content of inode: {}", inode.read_file(part.lba_start * 512).expect("cannot read the inode"));
-
-    let inode = Inode::new(part.lba_start * 512, 2, block_size, superblock, &gdt);
-    let root_dirs = inode.get_dir_entries(part.lba_start * 512).expect("cannot get dir entries");
-    for dir in root_dirs {
-        if dir.name == "home" || dir.name == "usr" {
-            tree(part, dir.inode, block_size, superblock, gdt.to_owned());
-        }
-    }
-    // TODO: get inode from path open and close system
+#[derive(Copy, Clone)]
+pub struct Ext2Info<'a> {
+    pub start: u64,
+    pub gdt: &'a GDTable,
+    pub block_size: u32,
+    pub sb: Superblock,
 }
 
-fn tree(part: &Partition, i: u32, block_size: u32, superblock: Superblock, gdt: GDTable) {
-    let inode = Inode::new(part.lba_start * 512, i, block_size, superblock, &gdt);
-    let root_dirs = inode.get_dir_entries(part.lba_start * 512).expect("cannot get dir entries");
-    for dir in root_dirs {
-               match DirType::new(dir.file_type) {
-            DirType::RegFile => {
-                println!("FILE: {}", dir.name);
-                if dir.get_ext() != "bmp" {
-                    let file_inode = Inode::new(part.lba_start * 512, dir.inode, block_size, superblock, &gdt);
-                    println!("Content of inode: {}", file_inode.read_file(part.lba_start * 512).expect("cannot read the inode"));
-                }
-            },
-            DirType::Dir => {
-                if dir.name != "." && dir.name != ".." {
-                    println!("DIR: {}", dir.name);
-                    tree(part, dir.inode, block_size, superblock, gdt.to_owned());
-                }
-            },
-            _ => println!("UNKNOWN"),
-        }
-    }
+pub fn init() {
+    use self::file::*;
+    let f = File::open("/home/user/hello.txt", "r");
+    let c = f.read();
+    println!("Content: {}", c);
 
+    let f = File::open("/usr/share/system/logo.bmp", "rb");
+    let c = f.read_binary();
+    // This file is huge, so we print only the 200 first characters
+    // The three first characters are `B` -> 66, `M` -> 77
+    // // So, in ascii, the first three characters are [66, 77]
+    println!("Content: {:?}", &c[0..200]);
 }

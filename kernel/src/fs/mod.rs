@@ -3,7 +3,7 @@
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
+ * the Free Software Foundation, either version 1 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -25,6 +25,7 @@ use self::ext2::superblock::Superblock;
 use core::str::from_utf8;
 
 pub mod ext2;
+pub mod vfs;
 pub mod partitions;
 
 lazy_static! {

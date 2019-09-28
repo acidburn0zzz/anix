@@ -15,11 +15,10 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use crate::fs::ext2::superblock::Superblock;
-use crate::fs::ext2::gd::GDTable;
 use crate::fs::ext2::InodeMode;
 use crate::disk::sata::read_disk;
 use crate::errors::*;
+use super::Ext2Info;
 use ::read_num_bytes;
 
 use core::ptr::copy_nonoverlapping;
@@ -96,18 +95,19 @@ impl DirType {
 
 impl Inode {
     /// Read an inode
-    pub fn new(partition_start: u64, i_num: u32, block_size: u32, sb: Superblock, gdt: &GDTable) -> Self {
+    pub fn new(info: Ext2Info, i_num: u32) -> Self {
         // TODO: Use plain for safe
-        let gr_num = (i_num - 1) / sb.data.s_inodes_per_group;
+        let gr_num = (i_num - 1) / info.sb.data.s_inodes_per_group;
 
-        let index = (i_num - 1) % sb.data.s_inodes_per_group;
+        let index = (i_num - 1) % info.sb.data.s_inodes_per_group;
 
-        let inode_table_start = gdt.0[gr_num as usize].bg_inode_table as u64 * block_size as u64;
+        let inode_table_start = info.gdt.0[gr_num as usize].bg_inode_table as u64
+                                * info.block_size as u64;
 
-        let offset: u64 = inode_table_start + index as u64 * sb.ext.s_inode_size as u64;
+        let offset: u64 = inode_table_start + index as u64 * info.sb.ext.s_inode_size as u64;
 
-        let value = &read_disk(partition_start + offset as u64,
-                               partition_start + offset as u64 + sb.ext.s_inode_size as u64)
+        let value = &read_disk(info.start + offset as u64,
+                               info.start + offset as u64 + info.sb.ext.s_inode_size as u64)
                                .expect("cannot read");
         Self::from_slice(value)
     }
@@ -201,12 +201,11 @@ impl Inode {
         else {
             let mut buf = Vec::new();
             for i in 0..12 {
-                if self.i_block[i] == 0 {
-                    break;
+                if self.i_block[i] != 0 {
+                    let addr = partition_start + 4096 * self.i_block[i] as u64;
+                    buf.extend(read_disk(addr, addr + self.i_size as u64)
+                        .expect("cannot read disk"));
                 }
-                let addr = partition_start + 4096 * self.i_block[i] as u64;
-
-                buf = read_disk(addr, addr + self.i_size as u64).expect("cannot read disk");
             }
             if buf.as_slice() == [] {
                 return Err(Error::new(ENXIO));
