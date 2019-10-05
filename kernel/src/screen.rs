@@ -170,7 +170,7 @@ impl Writer {
 
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        // Redirect text buffer to standard output
+        // Redirect text buffer to standard output because we are not in text mode
         #[cfg(feature="x86_64-qemu-Anix")]
         use ::serial_print;
         #[cfg(feature="x86_64-qemu-Anix")]
@@ -199,27 +199,14 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-#[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {
-		// Save actual color code
-		let old_color = WRITER.lock().color_code;
-
-		WRITER.lock().color_code = ColorCode::new(Color::Yellow, Color::Black);
-		$crate::print!("DEBUG: {}\n", format_args!($($arg)*));
-		WRITER.lock().color_code = old_color;
-	};
-}
-
 /// Prints the given formatted string to the VGA text buffer through the global `WRITER` instance.
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    use x86_64::instructions::interrupts;
 
-    interrupts::without_interrupts(|| {
-         WRITER.lock().write_fmt(args).unwrap();
-    });
+    // interrupts::without_interrupts(|| {
+     WRITER.lock().write_fmt(args).unwrap();
+    //});
 }
 
 pub fn starter_screen(){

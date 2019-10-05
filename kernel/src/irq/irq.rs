@@ -24,6 +24,7 @@ use alloc::prelude::v1::{Vec};
 use spin::Mutex;
 use task::Task;
 
+#[derive(Debug)]
 pub struct Event {
     pub r#type: EventType,
     used_by: Task, // TODO: Use just a &'static str with the task name. Use array or Vec<T>?
@@ -67,9 +68,9 @@ pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut Interru
 
 pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     use x86_64::instructions::port::Port;
-
     use pc_keyboard::*;
 
+    use ::debug;
     lazy_static! {
         static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
             Mutex::new(Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::MapLettersToUnicode));
@@ -98,68 +99,68 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
     unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }
 }
 pub extern "x86-interrupt" fn cascade_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\n\nCascade\n{:#?}", stack_frame);
+    println!("\n\nCascade\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(CASCADE_ID) }
 }
 
 pub extern "x86-interrupt" fn com1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nCom1\n{:#?}", stack_frame);
+    println!("\nCom1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(COM1_ID) }
 }
 
 pub extern "x86-interrupt" fn com2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nCom2\n{:#?}", stack_frame);
+    println!("\nCom2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(COM2_ID) }
 }
 
 pub extern "x86-interrupt" fn lpt1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nLpt1\n{:#?}", stack_frame);
+    println!("\nLpt1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(LPT1_ID) }
 }
 
 pub extern "x86-interrupt" fn floppy_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nFloppy\n{:#?}", stack_frame);
+    println!("\nFloppy\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(FLOPPY_ID) }
 }
 
 pub extern "x86-interrupt" fn lpt2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nLpt2\n{:#?}", stack_frame);
+    println!("\nLpt2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(LPT2_ID) }
 }
 
 pub extern "x86-interrupt" fn rtc_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nRTC\n{:#?}", stack_frame);
+    println!("\nRTC\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(RTC_ID) }
 }
 
 pub extern "x86-interrupt" fn pci1_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nPIC1\n{:#?}", stack_frame);
+    println!("\nPIC1\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI1_ID) }
 }
 
 pub extern "x86-interrupt" fn pci2_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nPIC2\n{:#?}", stack_frame);
+    println!("\nPIC2\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI2_ID) }
 }
 
 pub extern "x86-interrupt" fn pci3_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nPIC3\n{:#?}", stack_frame);
+    println!("\nPIC3\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(PCI3_ID) }
 }
 
 pub extern "x86-interrupt" fn mouse_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nMOUSE\n{:#?}", stack_frame);
+    println!("\nMOUSE\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(MOUSE_ID) }
 }
 
 pub extern "x86-interrupt" fn fpu_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\nFPU\n{:#?}", stack_frame);
+    println!("\nFPU\n{:#?}", stack_frame);
     unsafe { PICS.lock().notify_end_of_interrupt(FPU_ID) }
 }
 
 pub extern "x86-interrupt" fn syscall_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    print!("\n\nSYSCALL\n{:#?}", stack_frame);
-    unsafe{do_syscall();} // TODO: Manage syscalls
-    print!("\nEND OF SYSCALL");
+    println!("\n\nSYSCALL\n{:#?}", stack_frame);
+    unsafe{syscall();}
+    println!("\nEND OF SYSCALL");
     unsafe { PICS.lock().notify_end_of_interrupt(SYSCALL_ID) }
 }

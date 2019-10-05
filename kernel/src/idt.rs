@@ -31,7 +31,8 @@ use lazy_static::lazy_static;
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
-pub static PICS: spin::Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
+pub static PICS: spin::Mutex<ChainedPics> = Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET,
+                                                                                 PIC_2_OFFSET) });
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -48,7 +49,8 @@ lazy_static! {
         idt.invalid_opcode.set_handler_fn(invalid_opcode_handler);
         idt.device_not_available.set_handler_fn(device_not_available_handler);
         unsafe {
-            idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+            idt.double_fault.set_handler_fn(double_fault_handler)
+            .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
         }
         idt.invalid_tss.set_handler_fn(invalid_tss_handler);
         idt.segment_not_present.set_handler_fn(segment_not_present_handler);
@@ -63,8 +65,10 @@ lazy_static! {
 
         // Interrupts
         idt[usize::from(TIMER_ID)].set_handler_fn(timer_interrupt_handler);
-        idt[usize::from(KEYBOARD_ID)].set_handler_fn(keyboard_interrupt_handler);
 
+        // FIXME: Keyboard interrupts don't work because it is in usermdode
+        // TODO: Create a PS2 driver
+        idt[usize::from(KEYBOARD_ID)].set_handler_fn(keyboard_interrupt_handler);
         idt[usize::from(CASCADE_ID)].set_handler_fn(cascade_interrupt_handler);
         idt[usize::from(COM1_ID)].set_handler_fn(com1_interrupt_handler);
         idt[usize::from(COM2_ID)].set_handler_fn(com2_interrupt_handler);
@@ -77,7 +81,8 @@ lazy_static! {
         idt[usize::from(PCI3_ID)].set_handler_fn(pci3_interrupt_handler);
         idt[usize::from(MOUSE_ID)].set_handler_fn(mouse_interrupt_handler);
         idt[usize::from(FPU_ID)].set_handler_fn(fpu_interrupt_handler);
-        idt[usize::from(SYSCALL_ID)].set_handler_fn(syscall_interrupt_handler).set_privilege_level(Ring3);
+        idt[usize::from(SYSCALL_ID)].set_handler_fn(syscall_interrupt_handler)
+        .set_privilege_level(Ring3).set_present(true).disable_interrupts(false);
         idt
     };
 }

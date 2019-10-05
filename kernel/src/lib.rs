@@ -16,6 +16,7 @@
  */
 
 #![no_std]
+#![feature(global_asm)]
 #![feature(box_syntax)]
 #![feature(thread_local)]
 #![feature(asm)]
@@ -73,6 +74,7 @@ pub mod drivers; // Drivers management
 pub mod graphics; // Display things on screen
 pub mod usb; // USB management
 pub mod io; // IO (memory) management
+pub mod syscall; // Syscalls management
 
 #[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
 pub mod serial; // Qemu serial logging
@@ -83,6 +85,7 @@ use core::panic::PanicInfo;
 use alloc::alloc::Layout;
 
 use spin::Mutex;
+use x86::bits64::registers::*;
 
 use idt::PICS;
 use memory::{*, heap::{HEAP_START, HEAP_SIZE, BumpAllocator}};
@@ -98,7 +101,7 @@ pub static mut VBE_BUFFER: Mutex<u32> = Mutex::new(0);
 /// named `_start` by default.
 #[no_mangle] // don't mangle the name of this function
 #[cfg(not(test))]
-pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
+pub extern "C" fn rust_main(multiboot_information_address: usize) {
     screen::logo_screen();
 
     println!("Welcome!\nAnix is starting...");
@@ -106,6 +109,11 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
     unsafe {
         println!("DEBUG: init GDT");
         gdt::init();
+        gdt::init_paging(rsp());
+    }
+
+    unsafe {
+        irq::syscalls::init();
     }
 
     println!("DEBUG: init IDT");
@@ -150,20 +158,15 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) -> ! {
 
     println!("DEBUG: Start tasking system");
     unsafe {
-        Task::new("system", system as *const () as u32);
-        Task::new("terminal", user::input::terminal as *const () as u32);
+        Task::new("system", system as *const () as u64);
+        Task::new("terminal", user::input::terminal as *const () as u64);
 
-        TASK_RUNNING = CURRENT_TASKS[0];
+        // last task + 1 = first task
+        TASK_RUNNING = *CURRENT_TASKS.last().unwrap();
     }
 
     println!("DEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();
-
-    user::switch::init_user();
-
-    print!("xsh>");
-
-    hlt_loop();
 }
 
 #[cfg(not(test))]
@@ -196,4 +199,9 @@ fn enable_write_protect_bit() {
     unsafe { cr0_write(cr0() | Cr0::CR0_WRITE_PROTECT) };
 }
 
-fn system() {}
+fn system() {
+    use task::scheduler::switch;
+    unsafe {
+        switch();
+    }
+}

@@ -62,13 +62,11 @@ impl ActivePageTable {
     pub fn with<F>(&mut self,
                    table: &mut InactivePageTable,
                    _temporary_page: &mut temporary_page::TemporaryPage,
-                   f: F)
-        where F: FnOnce(&mut Mapper)
-{
+                   f: F) where F: FnOnce(&mut Mapper) {
     use x86_64::instructions::tlb;
 
     // overwrite recursive mapping
-    self.p4_mut()[511].set(table.p4_frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE);
+    self.p4_mut()[511].set(table.p4_frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
     tlb::flush_all();
 
     // execute f in the new context
@@ -76,7 +74,7 @@ impl ActivePageTable {
 
     // TODO restore recursive mapping to original p4 table
 
-        //temporary_page.unmap(self);
+    // temporary_page.unmap(self);
     }
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
@@ -95,43 +93,43 @@ impl ActivePageTable {
 }
 
 impl<L> Table<L> where L: TableLevel{
-	///Set all entries to zero
+    ///Set all entries to zero
     pub fn zero(&mut self) {
-		for entry in self.entries.iter_mut() {
-			entry.set_unused();
-		}
-	}
+        for entry in self.entries.iter_mut() {
+            entry.set_unused();
+        }
+    }
 }
 impl<L> Table<L> where L: HierarchicalLevel{
-	pub fn next_table_address(&self, index: usize) -> Option<usize>{
-		let entry_flags = self[index].flags();
-		if entry_flags.contains(EntryFlags::PRESENT) && !entry_flags.contains(EntryFlags::HUGE_PAGE) {
-			let table_address = self as *const _ as usize;
-			Some((table_address << 9) | (index << 12))
-		} else {
-			None
-		}
-	}
-	
-	pub fn next_table(&self, index: usize) -> Option<&Table<L::NextLevel>> {
-		self.next_table_address(index)
-			.map(|address| unsafe { &*(address as *const _) })
-	}
+    pub fn next_table_address(&self, index: usize) -> Option<usize>{
+        let entry_flags = self[index].flags();
+        if entry_flags.contains(EntryFlags::PRESENT) && !entry_flags.contains(EntryFlags::HUGE_PAGE) {
+            let table_address = self as *const _ as usize;
+            Some((table_address << 9) | (index << 12))
+        } else {
+            None
+        }
+    }
 
-	pub fn next_table_mut(&mut self, index: usize) -> Option<&mut Table<L::NextLevel>>{
-		self.next_table_address(index)
-			.map(|address| unsafe { &mut *(address as *mut _) })
-	}
-	
-	pub fn next_table_create<A>(&mut self, index: usize, allocator: &mut A) -> &mut Table<L::NextLevel> where A: FrameAllocator{
-		if self.next_table(index).is_none() {
-			assert!(!self.entries[index].flags().contains(EntryFlags::HUGE_PAGE), "mapping code does not support huge pages");
-			let frame = allocator.allocate_frame().expect("no frames available");
-			self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE);
-			self.next_table_mut(index).unwrap().zero();
-		}
-		self.next_table_mut(index).unwrap()
-	}
+    pub fn next_table(&self, index: usize) -> Option<&Table<L::NextLevel>> {
+        self.next_table_address(index)
+            .map(|address| unsafe { &*(address as *const _) })
+    }
+
+    pub fn next_table_mut(&mut self, index: usize) -> Option<&mut Table<L::NextLevel>>{
+        self.next_table_address(index)
+            .map(|address| unsafe { &mut *(address as *mut _) })
+    }
+
+    pub fn next_table_create<A>(&mut self, index: usize, allocator: &mut A) -> &mut Table<L::NextLevel> where A: FrameAllocator{
+        if self.next_table(index).is_none() {
+            assert!(!self.entries[index].flags().contains(EntryFlags::HUGE_PAGE), "mapping code does not support huge pages");
+            let frame = allocator.allocate_frame().expect("no frames available");
+            self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
+            self.next_table_mut(index).unwrap().zero();
+        }
+        self.next_table_mut(index).unwrap()
+    }
 }
 
 impl<L> Index<usize> for Table<L> where L: TableLevel {

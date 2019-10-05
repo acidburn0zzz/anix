@@ -48,11 +48,6 @@ pub fn date(_cmd: String) {
     println!("{}", DateTime::new());
 }
 
-pub fn user(_cmd: String) {
-    use crate::user::switch::init_user;
-    init_user();
-}
-
 pub fn help(_cmd: String) {
     print!("\nCommands:\n    help: Display this help\n    hello: Print \"Hello world!\"\n    startflame: Start flame (the graphic interface)\n    time: Print the time since you have started Anix\n    user: (not work)\n    lspci: Print all pci devices\n    mem: Test memory");
 }

@@ -1,4 +1,3 @@
-![Anix logo](assets/src/Anix.png)
 # Anix
 
 Anix is an operating system under GPL licence. So, you can modify and redistribute it.

@@ -36,7 +36,7 @@ pub struct Time {
 impl DateTime {
     pub fn new() -> Self {
         unsafe {
-			println!("Timestamp: {}", rdtsc());
+            println!("Timestamp: {}", rdtsc());
             Self::from_timestamp(rdtsc())
         }
     }

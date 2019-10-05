@@ -136,7 +136,8 @@ qemu: prepare-qemu launch-qemu
 prepare-qemu: clear compile link
 	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
 	@mkdir -p build/root
-	@dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
+	@# dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null
+	@fallocate -l 1G build/disk.iso
 	@echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk -u -C2000000 -S63 -H16 build/disk.iso > /dev/null 2> /dev/null # Partition the disk
 
 	@sudo losetup /dev/loop0 build/disk.iso
@@ -156,7 +157,12 @@ prepare-qemu: clear compile link
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 launch-qemu:
-	@kvm -m 4G -device ahci,id=ahci0\
+	@qemu-system-x86_64 -enable-kvm -m 3G -device ahci,id=ahci0\
+		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
+		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
+		-serial stdio -boot d
+debug-qemu:
+	@qemu-system-x86_64 -enable-kvm -m 3G -device ahci,id=ahci0\
 		-drive if=none,file=build/disk.iso,format=raw,id=drive-sata0-0-0\
 		-device ide-drive,bus=ahci0.0,drive=drive-sata0-0-0,id=sata0-0-0\
 		-serial stdio -boot d -s

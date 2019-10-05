@@ -15,13 +15,10 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 #![allow(irrefutable_let_patterns)]
-use crate::commands::{hello_world, date, user, lspci, help, test_mem, startflame};
-use crate::screen::WRITER;
+use crate::commands::{hello_world, date, lspci, help, test_mem, startflame};
 use alloc::prelude::v1::{String, ToString, ToOwned};
 use lazy_static::lazy_static;
 use spin::Mutex;
-use irq::irq::{EVENTS, EventType};
-use task::TASK_RUNNING;
 
 #[derive(Clone)]
 pub struct Input{
@@ -43,38 +40,41 @@ lazy_static! {
 }
 
 pub fn terminal() {
-    unsafe {
-        for e in &mut *EVENTS.lock() {
-            if e.is_used_by("terminal") == false {
-                if let EventType::Keyboard(c) = e.r#type {
-                    if INPUT.lock().actived == true {
-                        if c == '\n' {
-                            // Block the input
-                            INPUT.lock().actived = false;
+    use syscall::call::exit;
+    use ::debug;
+    debug!("The terminal doesn't work yet. Sorry ;)");
+    /*use ::debug;
+    for e in &mut *EVENTS.lock() {
+        if e.is_used_by("terminal") == false {
+            if let EventType::Keyboard(c) = e.r#type {
+                if INPUT.lock().actived == true {
+                    if c == '\n' {
+                        // Block the input
+                        INPUT.lock().actived = false;
 
-                            // Do the command
-                            detectcmd(INPUT.lock().content.to_owned());
+                        // Do the command
+                        detectcmd(INPUT.lock().content.to_owned());
 
-                            // Show the prompt
-                            WRITER.lock().new_line();
-                            print!("xsh>");
+                        // Show the prompt
+                        WRITER.lock().new_line();
+                        debug!("xsh>");
 
-                            // Clear the buffer
-                            INPUT.lock().content = "".to_string();
+                        // Clear the buffer
+                        INPUT.lock().content = "".to_string();
 
-                            // Reactivate input
-                            INPUT.lock().actived = true;
-                        }
-                        else{
-                            print!("{}", c.to_string());
-                            INPUT.lock().content.push_str(c.to_string().as_str());
-                        }
+                        // Reactivate input
+                        INPUT.lock().actived = true;
+                    }
+                    else{
+                        debug!("{}", c.to_string());
+                        INPUT.lock().content.push_str(c.to_string().as_str());
                     }
                 }
-                e.mark_as_used(TASK_RUNNING.unwrap());
             }
+            e.mark_as_used(TASK_RUNNING.unwrap());
         }
-    }
+    }*/
+    exit();
 }
 
 /// Function for detect command and exec it
@@ -83,7 +83,6 @@ pub unsafe fn detectcmd(cmd: String){
     let commands = [
         Command{cmd: "hello".to_string(), function: hello_world},
         Command{cmd: "date".to_string(), function: date},
-        Command{cmd: "user".to_string(), function: user},
         Command{cmd: "lspci".to_string(), function: lspci},
         Command{cmd: "help".to_string(), function: help},
         Command{cmd: "mem".to_string(), function: test_mem},

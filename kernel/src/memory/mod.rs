@@ -186,10 +186,12 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
     use {HEAP_START, HEAP_SIZE};
 
     let heap_start_page = Page::containing_address(HEAP_START);
-    let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE-1);
+    let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE - 1);
 
     for page in Page::range_inclusive(heap_start_page, heap_end_page) {
-        active_table.map(page, EntryFlags::WRITABLE, &mut area_frame_allocator);
+        active_table.map(page, EntryFlags::WRITABLE |
+                               EntryFlags::USER_ACCESSIBLE,
+                               &mut area_frame_allocator);
     }
 
     *AREA_FRAME_ALLOCATOR.lock() = Some(area_frame_allocator);
@@ -207,6 +209,8 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
         InactivePageTable::new(frame, &mut active_table, &mut temporary_page)
     };
 
+    // with is used to create a context with tlb_flush, ... (see kernel/src/memory/table/mod.rs
+    // line 62)
     active_table.with(&mut new_table, &mut temporary_page, |mapper| {
         // Map allocated kernel sections
         for section in elf_sections_tag.sections() {
@@ -227,19 +231,8 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
             let start_frame = Frame::containing_address(section.start_address() as usize);
             let end_frame = Frame::containing_address(section.end_address() as usize - 1);
             for frame in Frame::range_inclusive(start_frame, end_frame) {
-                mapper.identity_map(frame, flags, allocator);
+                mapper.identity_map(frame, flags | EntryFlags::USER_ACCESSIBLE, allocator);
             }
-        }
-
-        // Map VGA Text Buffer
-        let vga_buffer_frame = Frame::containing_address(0xb8000);
-        mapper.identity_map(vga_buffer_frame, EntryFlags::WRITABLE, allocator);
-
-        // Map VGA Frame Buffer
-        let vga_frame_buffer_start = Frame::containing_address(0xa0000);
-        let vga_frame_buffer_end = Frame::containing_address(0xa0000 + 1280 * 1025 * 4);
-        for frame in Frame::range_inclusive(vga_frame_buffer_start, vga_frame_buffer_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
         }
 
         // Map multiboot structure
@@ -255,16 +248,28 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
         let abar_end = Frame::containing_address(0xffffffff);
 
         for frame in Frame::range_inclusive(abar_start, abar_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE, allocator);
         }
 
         let ahci_start_2 = Frame::containing_address(0x13000);
         let ahci_end_2 = Frame::containing_address(0x500000);
 
         for frame in Frame::range_inclusive(ahci_start_2, ahci_end_2) {
-            mapper.identity_map(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
+        // TODO: Map with the task stack address
+        let stack_start = Frame::containing_address(0x500ca000);
+        let stack_end = Frame::containing_address(0x550ca000);
+
+        for frame in Frame::range_inclusive(stack_start, stack_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
      });
 
     let old_table = active_table.switch(new_table);
