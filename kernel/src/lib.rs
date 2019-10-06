@@ -75,6 +75,7 @@ pub mod graphics; // Display things on screen
 pub mod usb; // USB management
 pub mod io; // IO (memory) management
 pub mod syscall; // Syscalls management
+pub mod device; // Devices management
 
 #[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
 pub mod serial; // Qemu serial logging

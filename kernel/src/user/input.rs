@@ -42,7 +42,9 @@ lazy_static! {
 pub fn terminal() {
     use syscall::call::exit;
     use ::debug;
-    debug!("The terminal doesn't work yet. Sorry ;)");
+    debug!("The terminal doesn't work yet.
+            But, i can get the time: {} and i can convert it to a timestamp: {} ;)",
+            date(), date().to_timestamp());
     /*use ::debug;
     for e in &mut *EVENTS.lock() {
         if e.is_used_by("terminal") == false {

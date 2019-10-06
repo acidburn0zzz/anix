@@ -96,7 +96,7 @@ impl Mapper {
         let p2 = p3.next_table_create(page.p3_index(), allocator);
         let p1 = p2.next_table_create(page.p2_index(), allocator);
 
-        //WARNING: assert!(p1[page.p1_index()].is_unused());
+        // assert!(p1[page.p1_index()].is_unused());
         p1[page.p1_index()].set(frame, flags | EntryFlags::PRESENT);
     }
 
@@ -120,13 +120,13 @@ impl Mapper {
         use x86_64::instructions::tlb;
         use x86_64::VirtAddr;
 
-        //assert!(self.translate(page.start_address()).is_some());
+        assert!(self.translate(page.start_address()).is_some());
 
         let p1 = self.p4_mut().next_table_mut(page.p4_index()).and_then(|p3| p3.next_table_mut(page.p3_index())).and_then(|p2| p2.next_table_mut(page.p2_index())).expect("mapping code does not support huge pages");
         let _frame = p1[page.p1_index()].pointed_frame().unwrap();
         p1[page.p1_index()].set_unused();
         tlb::flush(VirtAddr::new(page.start_address() as u64));
         // TODO free p(1,2,3) table if empty
-        //allocator.deallocate_frame(frame);
+        // allocator.deallocate_frame(frame);
     }
 }

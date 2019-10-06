@@ -14,6 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-pub const SYS_EXIT: usize = 1;
-pub const SYS_TIME: usize = 0x0d;
-pub const SYS_DEBUG: usize = 339;
+
+// TODO: Put serial.rs in device directory
+pub mod rtc;

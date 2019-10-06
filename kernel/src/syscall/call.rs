@@ -29,6 +29,16 @@ pub unsafe fn syscall0(mut a: usize) -> Result<usize> {
     Error::demux(a)
 }
 
+pub unsafe fn syscall1(mut a: usize, b: usize) -> Result<usize> {
+    asm!("syscall"
+        : "={rax}"(a)
+        : "{rax}"(a), "{rdi}"(b)
+        : "rcx", "r11", "memory"
+        : "intel", "volatile");
+
+    Error::demux(a)
+}
+
 pub unsafe fn syscall2(mut a: usize, b: usize, c: usize) -> Result<usize> {
     asm!("syscall"
         : "={rax}"(a)
@@ -43,6 +53,16 @@ pub unsafe fn syscall2(mut a: usize, b: usize, c: usize) -> Result<usize> {
 pub fn exit() -> usize {
     unsafe {
         syscall0(SYS_EXIT).expect("cannot exit")
+    }
+}
+
+use time::DateTime;
+pub fn date() -> DateTime {
+    unsafe {
+        let reference: &[DateTime] = &[DateTime::default()];
+        syscall2(SYS_TIME, reference.as_ptr() as usize, reference.as_ref().len())
+        .expect("cannot read timestamp");
+        reference[0]
     }
 }
 

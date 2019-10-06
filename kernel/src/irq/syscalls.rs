@@ -24,16 +24,16 @@ pub unsafe fn init() {
     msr::wrmsr(msr::IA32_STAR, ((gdt::GDT_KERNEL_CODE as u64) << 3) << 32);
     msr::wrmsr(msr::IA32_LSTAR, syscall_instruction as u64);
     msr::wrmsr(msr::IA32_FMASK, 1 << 9);
-    msr::wrmsr(msr::IA32_KERNEL_GS_BASE, &gdt::TSS as *const _ as u64);
+    msr::wrmsr(msr::IA32_KERNEL_GSBASE, &gdt::TSS as *const _ as u64);
 
     let efer = msr::rdmsr(msr::IA32_EFER);
     msr::wrmsr(msr::IA32_EFER, efer | 1);
 }
 
-pub unsafe extern fn do_syscall(a: usize, b: usize, c: usize, _d: usize, _e: usize,
-                                _f: usize, _bp: usize, _stack: &mut SyscallStack)
+pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, _arg3: usize, _arg4: usize,
+                                _arg5: usize, _bp: usize, _stack: &mut SyscallStack)
                                 -> usize {
-    match a {
+    match num {
         SYS_EXIT => {
             // TODO: Kill or stop the task
             use task::{scheduler::*, *};
@@ -41,11 +41,20 @@ pub unsafe extern fn do_syscall(a: usize, b: usize, c: usize, _d: usize, _e: usi
             switch();
             0
         },
+        SYS_TIME => {
+            use device::rtc::Rtc;
+            use core::slice::from_raw_parts_mut;
+            use time::DateTime;
+
+            let pointer = from_raw_parts_mut(arg1 as *mut DateTime, arg2);
+            pointer[0] = Rtc::new().date();
+            0
+        },
         SYS_DEBUG => {
             use core::slice::from_raw_parts;
             use core::str::from_utf8;
 
-            println!("{}", from_utf8(from_raw_parts(b as *const u8, c)).expect("cannot transform to utf8"));
+            println!("{}", from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8"));
             0
         }
         _ => return ENOSYS as usize,
