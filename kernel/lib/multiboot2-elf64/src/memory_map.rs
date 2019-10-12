@@ -46,7 +46,7 @@ impl MemoryArea {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct MemoryAreaIter {
     current_area: u64,
     last_area: u64,

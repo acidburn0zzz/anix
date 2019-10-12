@@ -20,8 +20,10 @@ use super::Page;
 use memory::FrameAllocator;
 use crate::memory::table::{Table, Level1};
 
+#[derive(Copy, Clone)]
 struct TinyAllocator([Option<Frame>; 3]);
 
+#[derive(Copy, Clone)]
 pub struct TemporaryPage {
     page: Page,
     allocator: TinyAllocator,

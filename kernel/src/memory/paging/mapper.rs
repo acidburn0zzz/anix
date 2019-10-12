@@ -22,6 +22,7 @@ use memory::{PAGE_SIZE, Frame, FrameAllocator};
 use core::ptr::Unique;
 use memory::paging::EntryFlags;
 
+#[derive(Copy, Clone)]
 pub struct Mapper {
     p4: Unique<Table<Level4>>,
 }

@@ -25,7 +25,7 @@ use self::paging::{EntryFlags, Page, InactivePageTable, PhysicalAddress};
 use self::paging::temporary_page::TemporaryPage;
 use self::table::ActivePageTable;
 use multiboot2::{MemoryAreaIter, MemoryArea, ElfSectionsTag};
-use crate::AREA_FRAME_ALLOCATOR;
+use crate::{AREA_FRAME_ALLOCATOR, ACTIVE_TABLE};
 use crate::errors::Result;
 
 pub const PAGE_SIZE: usize = 4096;
@@ -49,7 +49,7 @@ impl Iterator for FrameIter {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Frame {
     number: usize,
 }
@@ -77,7 +77,7 @@ pub trait FrameAllocator {
     fn deallocate_frame(&mut self, frame: Frame);
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct AreaFrameAllocator {
     next_free_frame: Frame,
     current_area: Option<&'static MemoryArea>,
@@ -104,8 +104,8 @@ impl AreaFrameAllocator {
     }
 
     pub fn new<'a>(kernel_start: usize, kernel_end: usize,
-      multiboot_start: usize, multiboot_end: usize,
-      memory_areas: MemoryAreaIter) -> AreaFrameAllocator
+        multiboot_start: usize, multiboot_end: usize,
+        memory_areas: MemoryAreaIter) -> AreaFrameAllocator
     {
         let mut allocator = AreaFrameAllocator {
             next_free_frame: Frame::containing_address(0),
@@ -119,7 +119,6 @@ impl AreaFrameAllocator {
         allocator.choose_next_area();
         allocator
     }
-
 }
 
 impl FrameAllocator for AreaFrameAllocator {
@@ -127,7 +126,7 @@ impl FrameAllocator for AreaFrameAllocator {
         if let Some(area) = self.current_area {
             // "Clone" the frame to return it if it's free. Frame doesn't
             // implement Clone, but we can construct an identical frame.
-            let frame = Frame{ number: self.next_free_frame.number };
+            let frame = Frame { number: self.next_free_frame.number };
 
             // the last frame of the current area
             let current_area_last_frame = {
@@ -166,11 +165,13 @@ impl FrameAllocator for AreaFrameAllocator {
 }
 
 pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
-                   memory_areas: MemoryAreaIter) {
+                    memory_areas: MemoryAreaIter) {
     assert_has_not_been_called!("memory::init must be called only once");
 
-    let kernel_start = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.start_address()).min().unwrap();
-    let kernel_end = elf_sections_tag.sections().filter(|s| s.is_allocated()).map(|s| s.start_address() + s.size()).max().unwrap();
+    let kernel_start = elf_sections_tag.sections().filter(|s| s.is_allocated())
+                                                .map(|s| s.start_address()).min().unwrap();
+    let kernel_end = elf_sections_tag.sections().filter(|s| s.is_allocated())
+                                                .map(|s| s.start_address() + s.size()).max().unwrap();
 
     println!("\nKernel start: {:#x}, Kernel end: {:#x}", kernel_start, kernel_end);
     println!("\nMultiboot start: {:#x}, Multiboot end: {:#x}", start, end);
@@ -194,13 +195,14 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
                                &mut area_frame_allocator);
     }
 
+    *ACTIVE_TABLE.lock() = Some(active_table);
     *AREA_FRAME_ALLOCATOR.lock() = Some(area_frame_allocator);
 }
 
 pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
-                           end: usize, elf_sections_tag: ElfSectionsTag)
-                           -> ActivePageTable where A: FrameAllocator {
-   let mut temporary_page = TemporaryPage::new(Page { number: 0xcafebabe },
+                        end: usize, elf_sections_tag: ElfSectionsTag)
+                        -> ActivePageTable where A: FrameAllocator {
+    let mut temporary_page = TemporaryPage::new(Page { number: 0xcafebabe },
         allocator);
 
     let mut active_table = unsafe { ActivePageTable::new() };
@@ -209,8 +211,6 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
         InactivePageTable::new(frame, &mut active_table, &mut temporary_page)
     };
 
-    // with is used to create a context with tlb_flush, ... (see kernel/src/memory/table/mod.rs
-    // line 62)
     active_table.with(&mut new_table, &mut temporary_page, |mapper| {
         // Map allocated kernel sections
         for section in elf_sections_tag.sections() {
@@ -220,7 +220,8 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
                 continue;
             }
 
-            println!("Mapping section at addr: {:#x}, size: {:#x}", section.start_address(), section.size());
+            println!("Mapping section at addr: {:#x}, size: {:#x}",
+               section.start_address(), section.size());
 
             if section.start_address() % PAGE_SIZE as u64 != 0{
                 println!("Sections need to be page aligned!!");
@@ -244,21 +245,20 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
 
         // Map AHCI structure
         // TODO: Map with the address given with the PCI device
-        let abar_start = Frame::containing_address(0xf6504000);
+        /*let abar_start = Frame::containing_address(0xf6504000);
         let abar_end = Frame::containing_address(0xffffffff);
 
         for frame in Frame::range_inclusive(abar_start, abar_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT |
                                        EntryFlags::WRITABLE, allocator);
-        }
+        }*/
 
-        let ahci_start_2 = Frame::containing_address(0x13000);
-        let ahci_end_2 = Frame::containing_address(0x500000);
+        let ahci_start = Frame::containing_address(0x3fa000);
+        let ahci_end = Frame::containing_address(0x500000);
 
-        for frame in Frame::range_inclusive(ahci_start_2, ahci_end_2) {
+        for frame in Frame::range_inclusive(ahci_start, ahci_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+                                       EntryFlags::WRITABLE, allocator);
         }
 
         // TODO: Map with the task stack address
@@ -276,7 +276,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
 
     // turn the old p4 page into a guard page
     let old_p4_page = Page::containing_address(
-      old_table.p4_frame.start_address()
+        old_table.p4_frame.start_address()
     );
     active_table.unmap(old_p4_page, allocator);
 
@@ -298,4 +298,14 @@ pub fn physalloc() -> Result<usize>{
     Ok(allocate_frames().unwrap().start_address() as usize)
 }
 
-// TODO: Make a global mapping function
+pub unsafe fn map(start_address: usize, end_address: usize, flags: EntryFlags) {
+    let start = Frame::containing_address(start_address);
+    let end = Frame::containing_address(end_address);
+
+    for page in Frame::range_inclusive(start, end) {
+        ACTIVE_TABLE.lock().unwrap().identity_map(page,
+                            flags,
+                            &mut AREA_FRAME_ALLOCATOR
+                            .lock().unwrap());
+    }
+}

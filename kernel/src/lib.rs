@@ -23,7 +23,6 @@
 #![feature(const_fn)]
 #![feature(abi_x86_interrupt)]
 #![feature(ptr_internals)]
-#![feature(const_vec_new)]
 #![feature(allocator_api)]
 #![feature(alloc_error_handler)]
 #![feature(associated_type_bounds)]
@@ -89,14 +88,29 @@ use spin::Mutex;
 use x86::bits64::registers::*;
 
 use idt::PICS;
-use memory::{*, heap::{HEAP_START, HEAP_SIZE, BumpAllocator}};
+use memory::{
+    *,
+    heap::{
+        HEAP_START,
+        HEAP_SIZE,
+        BumpAllocator
+    },
+    table::ActivePageTable,
+    paging::{
+        EntryFlags,
+    }
+};
 use common::hlt_loop;
 use task::{Task, CURRENT_TASKS, TASK_RUNNING};
 
 #[global_allocator]
-pub static HEAP_ALLOCATOR: BumpAllocator = BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
-pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> = Mutex::new(None);
-pub static mut VBE_BUFFER: Mutex<u32> = Mutex::new(0);
+pub static HEAP_ALLOCATOR: BumpAllocator =
+                BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
+pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> =
+                Mutex::new(None);
+pub static mut ACTIVE_TABLE: Mutex<Option<ActivePageTable>> = Mutex::new(None);
+pub static mut VBE_BUFFER: Mutex<u32> =
+                Mutex::new(0);
 
 /// This function is the entry point, since the linker looks for a function
 /// named `_start` by default.
@@ -158,7 +172,11 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     serial_println!("Hello world in Qemu console!");
 
     println!("DEBUG: Start tasking system");
+
+    // Map usermode tasks
     unsafe {
+        map(system as *const () as usize, system as *const () as usize + 15,
+        EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
         Task::new("system", system as *const () as u64);
         Task::new("terminal", user::input::terminal as *const () as u64);
 

@@ -28,7 +28,10 @@ Anix works on real hardware or in Qemu. if you want to use it on real hardware, 
     and [Nasm](https://nasm.us) (on Debian or on Ubuntu open a terminal and type `sudo apt-get install nasm`)
 *   Install the nightly toolchain with Rustup (`rustup toolchain install nightly`) and set it as the default toolchain (`rustup override set nightly` in the Anix root)
 *   Add the rust-src component (`rustup component add rust-src`)
-*   Install lld (on Debian or on Ubuntu open a terminal and type `sudo apt-get install lld`)
+*   Install lld (on Debian open a terminal and type `sudo apt-get install lld`,
+    on Ubuntu 16.04 open a terminal and type `sudo apt-get install lld-6.0`, on
+    Ubuntu 18.04 open a terminal and type `sudo apt-get install lld-8.0` or
+    search `ld.lld your-distribution-name` in internet)
 *   Install xorriso (on Debian or on Ubuntu open a terminal and type `sudo apt-get install xorriso`)
 *   Finally, type `make qemu` in the Anix root directory
 

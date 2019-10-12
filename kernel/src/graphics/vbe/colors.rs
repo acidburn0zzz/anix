@@ -23,6 +23,7 @@ pub struct Rgb {
 }
 
 impl Rgb {
+    // TODO: handle alpha
     pub fn new(red: u8, green: u8, blue: u8) -> Self {
         Self {
             red: red,

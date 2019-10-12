@@ -19,8 +19,6 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 use memory::paging::*;
-use memory::paging::ENTRY_COUNT;
-use memory::paging::EntryFlags;
 use memory::FrameAllocator;
 use memory::Frame;
 use memory::paging::mapper::Mapper;
@@ -34,6 +32,7 @@ pub struct Table<L: TableLevel> {
 
 pub const P4: *mut Table<Level4> = 0xffffffff_fffff000 as *mut Table<Level4>;
 
+#[derive(Copy, Clone)]
 pub struct ActivePageTable {
     mapper: Mapper,
 }
@@ -63,18 +62,17 @@ impl ActivePageTable {
                    table: &mut InactivePageTable,
                    _temporary_page: &mut temporary_page::TemporaryPage,
                    f: F) where F: FnOnce(&mut Mapper) {
-    use x86_64::instructions::tlb;
+        use x86_64::instructions::tlb;
 
-    // overwrite recursive mapping
-    self.p4_mut()[511].set(table.p4_frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
-    tlb::flush_all();
+        // overwrite recursive mapping
+        self.p4_mut()[511].set(table.p4_frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE);
+        tlb::flush_all();
 
-    // execute f in the new context
-    f(self);
+        // execute f in the new context
+        f(self);
 
-    // TODO restore recursive mapping to original p4 table
-
-    // temporary_page.unmap(self);
+        // TODO restore recursive mapping to original p4 table
+        // temporary_page.unmap(self);
     }
 
     pub fn switch(&mut self, new_table: InactivePageTable) -> InactivePageTable {
@@ -93,7 +91,7 @@ impl ActivePageTable {
 }
 
 impl<L> Table<L> where L: TableLevel{
-    ///Set all entries to zero
+    /// Set all entries to zero
     pub fn zero(&mut self) {
         for entry in self.entries.iter_mut() {
             entry.set_unused();
@@ -126,7 +124,10 @@ impl<L> Table<L> where L: HierarchicalLevel{
             assert!(!self.entries[index].flags().contains(EntryFlags::HUGE_PAGE), "mapping code does not support huge pages");
             let frame = allocator.allocate_frame().expect("no frames available");
             self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
-            self.next_table_mut(index).unwrap().zero();
+            // println!("{:#?}", index);
+            if index != 489 && index != 501 { // Fix a strange error
+                self.next_table_mut(index).unwrap().zero();
+            }
         }
         self.next_table_mut(index).unwrap()
     }

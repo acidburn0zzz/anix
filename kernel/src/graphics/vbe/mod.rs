@@ -19,12 +19,22 @@ pub mod colors;
 pub mod geom;
 use self::colors::*;
 use self::geom::Shapes;
+use ::VBE_BUFFER;
+use memory::{map, paging::EntryFlags};
 
-pub static FB_WIDTH: u32 = 1024;
+pub static FB_WIDTH: u32  = 1024;
 pub static FB_HEIGHT: u32 = 768;
+pub static FB_DEPTH: u32  = 4;
 
 pub fn init() {
     println!("Vbe driver is starting...");
+    unsafe {
+        let addr = *VBE_BUFFER.lock();
+        map(addr as usize,
+            addr as usize +
+            FB_WIDTH as usize * FB_HEIGHT as usize * FB_DEPTH as usize,
+            EntryFlags::PRESENT | EntryFlags::WRITABLE);
+    }
     // Wallpaper
     Shapes::Rect {
         x: 0,

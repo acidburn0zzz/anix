@@ -81,7 +81,14 @@ struct SATAController{}
 
 impl SATAController{
     pub fn new<'a>(base: u32) -> Self {
+        use memory::{map, paging::EntryFlags};
         println!("\nDisks:");
+        unsafe {
+            println!("Base: {:#x}", base);
+            map(base as usize,
+                base as usize + 0x200,
+                EntryFlags::PRESENT | EntryFlags::WRITABLE);
+        }
         let mut all_disks = disks(base as usize, "disk");
 
         for disk in 0..all_disks.1.len() {
