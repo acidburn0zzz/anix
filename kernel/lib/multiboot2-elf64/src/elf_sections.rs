@@ -133,8 +133,8 @@ impl ElfSection {
             9 => ElfSectionType::RelRelocation,
             10 => ElfSectionType::Reserved,
             11 => ElfSectionType::DynamicLoaderSymbolTable,
-            0x6000_0000...0x6FFF_FFFF => ElfSectionType::EnvironmentSpecific,
-            0x7000_0000...0x7FFF_FFFF => ElfSectionType::ProcessorSpecific,
+            0x6000_0000..=0x6FFF_FFFF => ElfSectionType::EnvironmentSpecific,
+            0x7000_0000..=0x7FFF_FFFF => ElfSectionType::ProcessorSpecific,
             _ => panic!(),
         }
     }
@@ -184,7 +184,7 @@ impl ElfSection {
         self.flags().contains(ElfSectionFlags::ALLOCATED)
     }
 
-    fn get(&self) -> &ElfSectionInner {
+    fn get(&self) -> &dyn ElfSectionInner {
         match self.entry_size {
             40 => unsafe { &*(self.inner as *const ElfSectionInner32) },
             64 => unsafe { &*(self.inner as *const ElfSectionInner64) },

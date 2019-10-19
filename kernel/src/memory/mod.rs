@@ -243,16 +243,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
             mapper.identity_map(frame, EntryFlags::PRESENT, allocator);
         }
 
-        // Map AHCI structure
-        // TODO: Map with the address given with the PCI device
-        /*let abar_start = Frame::containing_address(0xf6504000);
-        let abar_end = Frame::containing_address(0xffffffff);
-
-        for frame in Frame::range_inclusive(abar_start, abar_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE, allocator);
-        }*/
-
+        // TODO: Don't map each device, map all the hardware space
         let ahci_start = Frame::containing_address(0x3fa000);
         let ahci_end = Frame::containing_address(0x500000);
 

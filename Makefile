@@ -63,6 +63,11 @@ endif
 
 all: msg clear compile link test-errors mount copy umount set-bootable
 
+user:
+	@echo "${LIGHTPURPLE}Compile and copy userspace programs${NORMAL}" | tr -d "'"
+	@cd userspace ; sh mk.sh
+	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
+
 msg:
 	@echo "${RED}MAKE SURE THAT YOU DONT HAVE PLUGGED TWO DEVICES!${NORMAL}" | tr -d "'"
 	@sh mk/prompt.sh
@@ -133,7 +138,7 @@ doc:
 
 qemu: ARCH=x86_64-qemu-Anix
 qemu: prepare-qemu launch-qemu
-prepare-qemu: clear compile link
+prepare-qemu: clear compile user link
 	@echo "${LIGHTPURPLE}Create the disk${NORMAL}" | tr -d "'"
 	@mkdir -p build/root
 	@# dd if=/dev/zero of=build/disk.iso count=2000000 > /dev/null 2> /dev/null

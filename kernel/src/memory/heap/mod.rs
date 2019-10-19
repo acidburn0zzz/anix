@@ -21,7 +21,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use spin::Mutex;
 
 pub const HEAP_START: usize = 0x50000000;
-pub const HEAP_SIZE: usize = 1 * 1024 * 1024;
+pub const HEAP_SIZE: usize = 2 * 1024 * 1024;
 
 
 /// A simple allocator that allocates memory linearly and ignores freed memory.

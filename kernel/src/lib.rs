@@ -50,6 +50,7 @@ extern crate multiboot2;
 extern crate byteorder;
 extern crate genio;
 extern crate plain;
+extern crate goblin;
 #[macro_use]
 extern crate once;
 
@@ -75,6 +76,7 @@ pub mod usb; // USB management
 pub mod io; // IO (memory) management
 pub mod syscall; // Syscalls management
 pub mod device; // Devices management
+pub mod elf; // Elf files loader
 
 #[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
 pub mod serial; // Qemu serial logging
@@ -168,9 +170,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     fs::init();
     fs::ext2::init();
 
-    #[cfg(feature="x86_64-qemu-Anix")]
-    serial_println!("Hello world in Qemu console!");
-
     println!("DEBUG: Start tasking system");
 
     // Map usermode tasks
@@ -183,6 +182,9 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
         // last task + 1 = first task
         TASK_RUNNING = *CURRENT_TASKS.last().unwrap();
     }
+
+    println!("DEBUG: Start elf loader");
+    elf::init();
 
     println!("DEBUG: enable interrupts");
     x86_64::instructions::interrupts::enable();

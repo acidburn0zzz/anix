@@ -96,6 +96,7 @@ impl File {
         }
     }
     pub fn read_binary(&self) -> Vec<u8> {
+        // TODO: Choose the lenght of the string read
         if self.content_binary.is_none() == false {
             return self.content_binary.to_owned().unwrap();
         }

@@ -87,7 +87,6 @@ pub unsafe fn run_task(){
     // TODO: Embed fs, gs, ss, cs and es in the Task struct to choose if the task will be run in
     // userspace or not + load them with x86::segmentation::load_{es, cs, ss, fs, gs}
 
-    // TODO: Resolve problem with ret in usermode (look at Redox)
     usermode(TASK_RUNNING.unwrap().rip as u32, TASK_RUNNING.unwrap().rsp as u32, 0);
 }
 

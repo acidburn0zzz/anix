@@ -306,7 +306,6 @@ impl HbaPort {
 
         if let Some(slot) = self.slot() {
             {
-                // println!("Write cfl at {:p}", cmdheader.cfl.value.as_mut_ptr());
                 let cmdheader = &mut clb[slot as usize];
 
                 cmdheader.cfl.write(0x5); // 0x5 = (size_of::<FisRegH2D>() / size_of::<u32>()) as u8

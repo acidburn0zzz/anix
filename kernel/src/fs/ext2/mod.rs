@@ -64,12 +64,12 @@ pub fn init() {
     use self::file::*;
     let f = File::open("/home/user/hello.txt", "r");
     let c = f.read();
-    println!("Content: {}", c);
+    println!("Content of file /home/user/hello.txt:\n{}", c);
 
-    let f = File::open("/usr/share/system/logo.bmp", "rb");
-    let c = f.read_binary();
+    // let f = File::open("/usr/share/system/logo.bmp", "rb");
+    // let c = f.read_binary();
     // This file is huge, so we print only the 200 first characters
     // The three first characters are `B` -> 66, `M` -> 77
     // // So, in ascii, the first three characters are [66, 77]
-    println!("Content: {:?}", &c[0..200]);
+    // println!("Content: {:?}", &c[0..200]);
 }

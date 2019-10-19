@@ -157,9 +157,7 @@ pub extern "x86-interrupt" fn fpu_interrupt_handler(stack_frame: &mut InterruptS
     unsafe { PICS.lock().notify_end_of_interrupt(FPU_ID) }
 }
 
-pub extern "x86-interrupt" fn syscall_interrupt_handler(stack_frame: &mut InterruptStackFrame) {
-    println!("\n\nSYSCALL\n{:#?}", stack_frame);
+pub extern "x86-interrupt" fn syscall_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
     unsafe{syscall();}
-    println!("\nEND OF SYSCALL");
     unsafe { PICS.lock().notify_end_of_interrupt(SYSCALL_ID) }
 }

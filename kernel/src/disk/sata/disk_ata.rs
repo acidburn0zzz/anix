@@ -122,7 +122,6 @@ impl DiskATA {
                         continue;
                     }
                 }
-
                 self.port.ata_stop(running.0)?;
 
                 if let BufferKind::Read(ref mut buffer) = buffer_kind {

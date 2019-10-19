@@ -18,6 +18,11 @@ x86_64 = "0.7.5"
 rlibc = "1.0.0"
 plain = "0.2"
 
+[dependencies.goblin]
+default-features = false
+features = ["elf32", "elf64", "endian_fd", "alloc"]
+version = "0.0.24"
+
 [dependencies.lazy_static]
 features = ["spin_no_std"]
 version = "1.0"
