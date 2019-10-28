@@ -21,6 +21,8 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 pub mod paging;
 pub mod table;
 pub mod heap;
+pub mod consts;
+
 use self::paging::{EntryFlags, Page, InactivePageTable, PhysicalAddress};
 use self::paging::temporary_page::TemporaryPage;
 use self::table::ActivePageTable;
@@ -243,23 +245,12 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
             mapper.identity_map(frame, EntryFlags::PRESENT, allocator);
         }
 
-        // TODO: Don't map each device, map all the hardware space
-        let ahci_start = Frame::containing_address(0x3fa000);
-        let ahci_end = Frame::containing_address(0x500000);
+        let ahci_frames_start = Frame::containing_address(0x550000);
+        let ahci_frames_end = Frame::containing_address(0x6000000);
 
-        for frame in Frame::range_inclusive(ahci_start, ahci_end) {
+        for frame in Frame::range_inclusive(ahci_frames_start, ahci_frames_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT |
                                        EntryFlags::WRITABLE, allocator);
-        }
-
-        // TODO: Map with the task stack address
-        let stack_start = Frame::containing_address(0x500ca000);
-        let stack_end = Frame::containing_address(0x550ca000);
-
-        for frame in Frame::range_inclusive(stack_start, stack_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
         }
      });
 

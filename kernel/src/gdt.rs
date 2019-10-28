@@ -23,8 +23,7 @@ use x86::current::task::TaskStateSegment;
 use x86::bits64::segmentation::load_cs;
 use x86::segmentation::Descriptor;
 use x86::dtables::DescriptorTablePointer;
-
-pub const USER_TCB_OFFSET: usize = 0xB000_0000;
+use memory::consts::USER_TCB_OFFSET;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const GDT_NULL: usize = 0;
@@ -125,7 +124,7 @@ pub unsafe fn init_paging(stack_offset: u64) {
     GDTR.base = GDT.as_ptr() as *const Descriptor;
 
     // Set the User TLS segment to the offset of the user TCB
-    GDT[GDT_USER_TLS].set_offset(USER_TCB_OFFSET as u32);
+    GDT[GDT_USER_TLS].set_offset(USER_TCB_OFFSET.start as u32);
 
     // We can now access our TSS, which is a thread local
     GDT[GDT_TSS].set_offset(&TSS as *const _ as u32);

@@ -77,13 +77,6 @@ pub unsafe fn restore_registers(){
 
 /// Jump to the function
 pub unsafe fn run_task(){
-    /*asm!("call rax"
-        :
-        : "{rax}"(TASK_RUNNING.unwrap().rip)
-        :
-        : "intel", "volatile"
-        );*/
-
     // TODO: Embed fs, gs, ss, cs and es in the Task struct to choose if the task will be run in
     // userspace or not + load them with x86::segmentation::load_{es, cs, ss, fs, gs}
 
@@ -140,30 +133,3 @@ unsafe fn usermode(ip: u32, sp: u32, arg: u32) {
     unreachable!();
 
 }
-
-/*extern {
-    fn to_usermode(ip: u32, sp: u32, cr3: u32);
-}
-
-global_asm!(r#"
-.globl _to_usermode
-to_usermode:
-    mov $0x23, %ax # USer data segment
-    mov %ax, %ds
-    mov %ax, %es
-    mov %ax, %fs
-    mov %ax, %gs
-
-    mov 4(%esp), %eax
-    mov 8(%esp), %ecx
-    mov 12(%esp), %edx
-    mov %rdx, %cr3
-    push $0x23 # Stack segment
-    push %rcx # Stack pointer
-    pushf
-    push $0x1B # User code segment
-    push %rax # Handler
-    iret
-"#);*/
-
-// TODO: Return function which switch to a new task

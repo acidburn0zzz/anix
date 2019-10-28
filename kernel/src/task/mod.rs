@@ -57,7 +57,6 @@ impl Default for Task {
 impl Task {
     /// Create a new alive task and add it in the tasks Vec
     pub unsafe fn new(name: &'static str, addr: u64) -> Self {
-        // FIXME: Problem with terminal Task and Vecs
         // TODO: Map each stack pointer
         let mut stack = vec![0; 5000].into_boxed_slice();
 

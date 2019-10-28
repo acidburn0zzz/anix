@@ -28,7 +28,7 @@ SECTIONS {
 		. = ALIGN(4K);
 	}
 
-	.text : ALIGN(4K)	/* FIXME: WARNING: Not aligned!!! (addr: 0x13B030)*/
+	.text : ALIGN(4K)
 	{
 		*(.text .text.*)
 		. = ALIGN(4K);

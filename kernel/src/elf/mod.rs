@@ -19,10 +19,7 @@ use memory::{map, paging::EntryFlags};
 use task::Task;
 use goblin::elf::*;
 use core::ptr::copy_nonoverlapping;
-
-// TODO: Move these consts in a consts.rs file
-pub const USER_OFFSET: u64 = 0x40000000;
-pub const USER_STACK: u64 = 0xE0000000;
+use memory::consts::USER_OFFSET;
 
 pub fn init() {
     load_elf("/bin/rust-test");
@@ -41,11 +38,11 @@ pub fn load_elf(path: &'static str) {
                     let start = ph.p_vaddr as u64;
                     let end = (ph.p_vaddr + ph.p_memsz) as u64;
 
-                    if start < USER_OFFSET {
+                    if start < USER_OFFSET.start as u64 {
                         ()
                     }
 
-                    if end > USER_STACK {
+                    if end > USER_OFFSET.end as u64 {
                         ()
                     }
                     unsafe {

@@ -20,8 +20,6 @@ use core::{mem, ptr};
 use core::ops::{Deref, DerefMut};
 use crate::errors::Result;
 
-pub static mut NEXT_DMA_ADDR: usize = 0x3fa000;
-
 #[allow(dead_code)]
 struct PhysBox {
     address: usize,
@@ -30,15 +28,11 @@ struct PhysBox {
 
 impl PhysBox {
     fn new(size: usize) -> Result<PhysBox> {
-        let phys;
-        unsafe {
-            phys = PhysBox {
-                address: NEXT_DMA_ADDR,
-                size: size,
-            };
-            NEXT_DMA_ADDR += 0x1000;
-        }
-        Ok(phys)
+        let address = crate::physalloc()?;
+        Ok(PhysBox {
+            address: address,
+            size: size,
+        })
     }
 }
 
@@ -102,3 +96,4 @@ impl<T> Drop for Dma<T> {
         // let _ = unsafe { crate::physunmap(self.virt as usize) };
     }
 }
+
