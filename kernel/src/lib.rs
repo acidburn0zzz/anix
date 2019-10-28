@@ -121,7 +121,7 @@ pub static mut VBE_BUFFER: Mutex<u32> =
 pub extern "C" fn rust_main(multiboot_information_address: usize) {
     screen::logo_screen();
 
-    println!("Welcome!\nAnix is starting...");
+    println!("Welcome!\nAnix v0.0.3 is starting...");
 
     unsafe {
         println!("DEBUG: init GDT");
