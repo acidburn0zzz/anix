@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2018-2019 Nicolas Fouquet
+ * Copyright (C) 2018-2020 Nicolas Fouquet
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -21,12 +21,13 @@
 // problem we skip compilation of this module on Windows.
 #![cfg(not(windows))]
 
-use crate::{gdt, irq::irq::*, irq::exceptions::*, irq::irqid::*};
 use pic8259_simple::ChainedPics;
 use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable};
 use x86_64::PrivilegeLevel::Ring3;
 use lazy_static::lazy_static;
+
+use crate::{gdt, irq::irq::*, irq::exceptions::*, irq::irqid::*};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;

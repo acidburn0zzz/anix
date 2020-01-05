@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2018-2019 Nicolas Fouquet
+ * Copyright (C) 2018-2020 Nicolas Fouquet
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -15,12 +15,13 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-pub mod colors;
-pub mod geom;
 use self::colors::*;
 use self::geom::Shapes;
 use crate::VBE_BUFFER;
 use crate::memory::{map, paging::EntryFlags};
+
+pub mod colors;
+pub mod geom;
 
 pub static FB_WIDTH: u32  = 1024;
 pub static FB_HEIGHT: u32 = 768;

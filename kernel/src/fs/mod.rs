@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2018-2019 Nicolas Fouquet
+ * Copyright (C) 2018-2020 Nicolas Fouquet
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 1 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -33,7 +33,7 @@ lazy_static! {
 }
 
 pub fn init() {
-    // TODO: Initramfs for choose partition and disk
+    // TODO: Initramfs to choose partition and disk
 
     let mbr_partitions_addr: [u64; 4] = [0x1be, 0x1ce, 0x1de, 0x1ee];
     println!("| Name | Bootable | Type | Start sector | Size");
