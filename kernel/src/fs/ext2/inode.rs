@@ -25,6 +25,14 @@ use crate::errors::*;
 use crate::read_num_bytes;
 use super::Ext2Info;
 
+const SI_BLOCK: usize = 12; // Single indirect block
+
+#[allow(dead_code)]
+const DI_BLOCK: usize = 13; // Double indirect block
+
+#[allow(dead_code)]
+const TI_BLOCK: usize = 14; // Triple indirect block
+
 #[derive(Debug, Copy, Clone)]
 pub struct Inode
 {
@@ -185,34 +193,55 @@ impl Inode {
         Ok(from_utf8(&self.read(partition_start)?).expect("cannot convert string to utf-8").to_string())
     }
 
+    // TODO: Create a cache
     pub fn read(&self, partition_start: u64) -> Result<Vec<u8>> {
-        if self.i_block[12] != 0 {
-            // TODO: Indirect blocks
-            Ok(Vec::new())
+
+        // 1. Compute block offsets
+        let mut used_blocks: Vec<u32> = Vec::new();
+
+        // Direct block
+        for direct_block in &self.i_block[0..12] {
+            if *direct_block != 0 {
+                used_blocks.push(*direct_block);
+            }
         }
-        else if self.i_block[13] != 0 {
-            // TODO: Bi-indirect blocks
-            Ok(Vec::new())
-        }
-        else if self.i_block[14] != 0 {
-            // TODO: Tri-indirect blocks
-            Ok(Vec::new())
-        }
-        else {
-            let mut buf = Vec::new();
-            for i in 0..12 {
-                if self.i_block[i] != 0 {
-                    let addr = partition_start + 4096 * self.i_block[i] as u64;
-                    buf.extend(read_disk(addr, addr + self.i_size as u64)
-                        .expect("cannot read disk"));
+
+        // Indirect block
+        if self.i_block[SI_BLOCK] != 0 {
+            let indirect_block = get_block(partition_start, self.i_block[SI_BLOCK]);
+            for block in 0..indirect_block.len() / 4 {
+                let block = block * 4;
+
+                // Convert u8 value to an u32 value
+                let indirect_block_num = read_num_bytes!(u32, indirect_block[block..block + 4]);
+                if indirect_block_num != 0 {
+                    used_blocks.push(indirect_block_num);
                 }
             }
-            if buf.as_slice() == [] {
-                return Err(Error::new(ENXIO));
-            }
-            else {
-                return Ok(buf);
-            }
+        }
+
+        // TODO: Double-indirect blocks and triple indirect blocks
+
+        // 2. Read each block
+        let mut buf = Vec::new();
+
+        for block in used_blocks {
+            let data = get_block(partition_start, block);
+            let size = if self.i_size < 4096 { self.i_size } else { 4096 };
+            buf.extend(&data[..size as usize]);
+        }
+
+        if buf.as_slice() == [] {
+            return Err(Error::new(ENXIO));
+        }
+        else {
+            return Ok(buf);
         }
     }
+}
+
+fn get_block(partition_start: u64, num: u32) -> Vec<u8> {
+    // TODO: Replace all 4096 by block_size
+    let addr = partition_start + (4096 * num) as u64;
+    read_disk(addr, addr + 4096).expect("cannot read disk")
 }
