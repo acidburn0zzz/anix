@@ -114,6 +114,7 @@ pub static mut VBE_BUFFER: Mutex<u32> =
 #[no_mangle] // don't mangle the name of this function
 #[cfg(not(test))]
 pub extern "C" fn rust_main(multiboot_information_address: usize) {
+    // TODO: enable SSE (see the sse.rs file in the bootloader crate)
     screen::logo_screen();
 
     println!("Welcome!\nAnix v0.0.3 is starting...");

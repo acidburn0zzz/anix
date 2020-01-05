@@ -1,4 +1,4 @@
-; Copyright (C) 2018-2020 Nicolas Fouquet 
+; Copyright (C) 2018-2020 Nicolas Fouquet
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ _start:
     call check_multiboot
     call check_cpuid
     call check_long_mode
-    
+
     call set_up_page_tables
     call enable_paging
 
@@ -33,7 +33,7 @@ _start:
     lgdt [gdt64.pointer]
 
     jmp gdt64.code:long_mode_start
-    
+
     ; print `OK` to screen
     mov dword [0xb8000], 0x2f4b2f4f
     hlt
@@ -43,7 +43,7 @@ error:
     mov dword [0xb8008], 0x4f204f20
     mov byte  [0xb800a], al
     hlt
-    
+
 check_multiboot:
     cmp eax, 0x36d76289
     jne .no_multiboot
@@ -102,7 +102,7 @@ check_long_mode:
 .no_long_mode:
     mov al, "2"
     jmp error
-    
+
 set_up_page_tables:
     ; map first P4 entry to P3 table
     mov eax, p3_table
@@ -116,7 +116,7 @@ set_up_page_tables:
 
     ; map each P2 entry to a huge 2MiB page
     mov ecx, 0         ; counter variable
-    
+
     mov eax, p4_table
 	or eax, 0b11 ; present + writable
 	mov [p4_table + 511 * 8], eax
@@ -133,7 +133,7 @@ set_up_page_tables:
     jne .map_p2_table  ; else map the next entry
 
     ret
-    
+
 enable_paging:
     ; load P4 to cr3 register (cpu uses this to access the P4 table)
     mov eax, p4_table
@@ -156,7 +156,7 @@ enable_paging:
     mov cr0, eax
 
     ret
-    
+
 section .rodata
 gdt64:
     dq 0 ; zero entry

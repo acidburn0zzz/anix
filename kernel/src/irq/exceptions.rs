@@ -60,7 +60,7 @@ pub extern "x86-interrupt" fn device_not_available_handler(stack_frame: &mut Int
     hlt_loop();
 }
 
-pub extern "x86-interrupt" fn double_fault_handler(stack_frame: &mut InterruptStackFrame, _error_code: u64) {
+pub extern "x86-interrupt" fn double_fault_handler(stack_frame: &mut InterruptStackFrame, _error_code: u64) -> ! {
     print!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
     hlt_loop();
 }
@@ -106,7 +106,7 @@ pub extern "x86-interrupt" fn alignment_check_handler(stack_frame: &mut Interrup
     hlt_loop();
 }
 
-pub extern "x86-interrupt" fn machine_check_handler(stack_frame: &mut InterruptStackFrame) {
+pub extern "x86-interrupt" fn machine_check_handler(stack_frame: &mut InterruptStackFrame) -> ! {
     print!("EXCEPTION: MACHINE CHECK\n{:#?}", stack_frame);
     hlt_loop();
 }

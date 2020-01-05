@@ -41,7 +41,7 @@ lazy_static! {
 
         // Exceptions
         idt.page_fault.set_handler_fn(page_fault_handler);
-        idt.divide_by_zero.set_handler_fn(divide_by_zero_handler);
+        idt.divide_error.set_handler_fn(divide_by_zero_handler);
         idt.debug.set_handler_fn(debug_handler);
         idt.non_maskable_interrupt.set_handler_fn(non_maskable_interrupt_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);

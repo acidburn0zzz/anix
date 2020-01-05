@@ -27,6 +27,7 @@ pub static FB_WIDTH: u32  = 1024;
 pub static FB_HEIGHT: u32 = 768;
 pub static FB_DEPTH: u32  = 4;
 
+// TODO: To use text, see the file printer/vga_320x200.rs in the bootloader crate
 pub fn init() {
     println!("Vbe driver is starting...");
     unsafe {

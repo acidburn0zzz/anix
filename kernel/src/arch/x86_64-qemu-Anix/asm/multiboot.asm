@@ -28,8 +28,8 @@ video_tag:
     dw 0                            ; flags
     dd video_tag_end - video_tag    ; size
     dd 1024                         ; width
-    dd 768                         ; height
-    dd 32                          ; depth
+    dd 768                          ; height
+    dd 32                           ; depth
 video_tag_end:
 
     align 8
