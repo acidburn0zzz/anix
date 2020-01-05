@@ -14,8 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use io::{io::Io, pio::Pio};
-use time::*;
+use crate::io::{io::Io, pio::Pio};
+use crate::time::*;
 
 fn cvt_bcd(value: usize) -> usize {
     (value & 0xF) + ((value / 16) * 10)

@@ -15,10 +15,11 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 use alloc::prelude::v1::{String, Vec, ToString, ToOwned};
+
 use super::INODE_ROOT;
-use fs::PARTITIONS;
 use super::{Ext2Info, gd::GDTable, inode::Inode};
-use errors::{Error, ENOENT};
+use crate::fs::PARTITIONS;
+use crate::errors::{Error, ENOENT};
 
 pub struct File {
     content: Option<String>,

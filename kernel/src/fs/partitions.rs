@@ -18,8 +18,7 @@
 use core::ptr::copy_nonoverlapping;
 
 use super::ext2::superblock::Superblock;
-
-use ::read_num_bytes;
+use crate::read_num_bytes;
 
 pub struct Partition {
     pub bootable: bool,

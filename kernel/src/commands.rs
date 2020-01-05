@@ -15,7 +15,7 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-//! For add a command:
+//! To add a command:
 //! Add the function in src/commands.rs
 //! And in src/user/input.rs in static commands, change length of array and add a struct command
 //! # Example
@@ -44,7 +44,7 @@ pub fn hello_world(_cmd: String) {
 }
 
 pub fn date(_cmd: String) {
-    use time::DateTime;
+    use crate::time::DateTime;
     println!("{}", DateTime::new());
 }
 
@@ -72,7 +72,7 @@ pub fn test_mem(_cmd: String) {
 }
 
 pub fn startflame(_cmd: String) {
-    use graphics::vbe;
+    use crate::graphics::vbe;
     println!("\nFlame is starting...");
 
     vbe::init();

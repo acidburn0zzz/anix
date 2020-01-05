@@ -15,9 +15,10 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 use alloc::prelude::v1::{Box, Vec};
-use pci::{BusDevice, BusManager};
 use spin::Mutex;
 use x86::io::*;
+
+use crate::pci::{BusDevice, BusManager};
 
 #[derive(Copy, Clone)]
 /// IO range binding

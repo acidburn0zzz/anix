@@ -19,9 +19,10 @@
 use alloc::prelude::v1::{Box, Vec, String, ToString};
 use x86::io::*;
 use spin::Mutex;
-use drivers::DriverInstance;
+
+use crate::drivers::DriverInstance;
 use crate::drivers::IOBinding;
-use drivers::*;
+use crate::drivers::*;
 
 static S_PCI_LOCK: Mutex<PCICfgSpace> = Mutex::new(PCICfgSpace);
 

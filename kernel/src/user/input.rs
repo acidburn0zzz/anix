@@ -14,11 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-#![allow(irrefutable_let_patterns)]
-use crate::commands::{hello_world, date, lspci, help, test_mem, startflame};
 use alloc::prelude::v1::{String, ToString, ToOwned};
 use lazy_static::lazy_static;
 use spin::Mutex;
+
+use crate::commands::{hello_world, date, lspci, help, test_mem, startflame};
 
 #[derive(Clone)]
 pub struct Input{
@@ -40,8 +40,8 @@ lazy_static! {
 }
 
 pub fn terminal() {
-    use syscall::call::exit;
-    use ::debug;
+    use crate::syscall::call::exit;
+    use crate::debug;
     debug!("The terminal doesn't work yet.
             But, i can get the time: {} and i can convert it to a timestamp: {} ;)",
             date(), date().to_timestamp());

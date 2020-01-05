@@ -16,14 +16,15 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
+use spin::Mutex;
+use alloc::prelude::v1::{Box, Vec};
+
 use self::{disk_ata::DiskATA, disk_atapi::DiskATAPI};
 use self::hba::{HbaMem, HbaPortType};
-use alloc::prelude::v1::{Box, Vec};
-use drivers::{DriverInstance, Driver};
-use pci::BusDevice;
+use crate::drivers::{DriverInstance, Driver};
+use crate::pci::BusDevice;
 use crate::errors::{Result, EIO, Error};
 use crate::io::io::Io;
-use spin::Mutex;
 
 pub mod disk_ata;
 pub mod disk_atapi;
@@ -81,7 +82,7 @@ struct SATAController{}
 
 impl SATAController{
     pub fn new<'a>(base: u32) -> Self {
-        use memory::{map, paging::EntryFlags};
+        use crate::memory::{map, paging::EntryFlags};
         println!("\nDisks:");
         unsafe {
             map(base as usize,

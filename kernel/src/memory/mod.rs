@@ -186,7 +186,7 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
 
     let mut active_table = remap_the_kernel(&mut area_frame_allocator, start, end, elf_sections_tag);
 
-    use {HEAP_START, HEAP_SIZE};
+    use crate::{HEAP_START, HEAP_SIZE};
 
     let heap_start_page = Page::containing_address(HEAP_START);
     let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE - 1);

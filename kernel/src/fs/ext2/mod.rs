@@ -15,7 +15,8 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 use self::gd::*;
-use fs::ext2::superblock::Superblock;
+use crate::fs::ext2::superblock::Superblock;
+
 pub mod superblock;
 pub mod gd;
 pub mod inode;

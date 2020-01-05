@@ -17,8 +17,12 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 */
 
 use super::Page;
-use memory::FrameAllocator;
+use super::VirtualAddress;
+use crate::memory::FrameAllocator;
 use crate::memory::table::{Table, Level1};
+use crate::memory::table::{ActivePageTable};
+use crate::memory::Frame;
+use crate::memory::paging::EntryFlags;
 
 #[derive(Copy, Clone)]
 struct TinyAllocator([Option<Frame>; 3]);
@@ -29,25 +33,19 @@ pub struct TemporaryPage {
     allocator: TinyAllocator,
 }
 
-use crate::memory::table::{ActivePageTable};
-use super::VirtualAddress;
-use memory::Frame;
-
 impl TemporaryPage {
-	pub fn new<A>(page: Page, allocator: &mut A) -> TemporaryPage where A: FrameAllocator{
-		TemporaryPage {
-			page: page,
-			allocator: TinyAllocator::new(allocator),
-		}
-	}
+    pub fn new<A>(page: Page, allocator: &mut A) -> TemporaryPage where A: FrameAllocator {
+        TemporaryPage {
+            page: page,
+            allocator: TinyAllocator::new(allocator),
+        }
+    }
 
     /// Maps the temporary page to the given frame in the active table.
     /// Returns the start address of the temporary page.
     pub fn map(&mut self, frame: Frame, active_table: &mut ActivePageTable)
         -> VirtualAddress
     {
-        use memory::paging::EntryFlags;
-
         assert!(active_table.translate_page(self.page).is_none(), "temporary page is already mapped");
         active_table.map_to(self.page, frame, EntryFlags::WRITABLE, &mut self.allocator);
         self.page.start_address()
@@ -57,10 +55,10 @@ impl TemporaryPage {
     pub fn unmap(&mut self, active_table: &mut ActivePageTable) {
         active_table.unmap(self.page, &mut self.allocator)
     }
-    
+
     pub fn map_table_frame(&mut self, frame: Frame, active_table: &mut ActivePageTable) -> &mut Table<Level1> {
-		unsafe { &mut *(self.map(frame, active_table) as *mut Table<Level1>) }
-	}
+        unsafe { &mut *(self.map(frame, active_table) as *mut Table<Level1>) }
+    }
 }
 
 impl FrameAllocator for TinyAllocator {

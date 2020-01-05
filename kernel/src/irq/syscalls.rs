@@ -16,9 +16,10 @@
  */
 
 use x86::msr;
-use gdt;
-use syscall::number::*;
-use errors::*;
+
+use crate::gdt;
+use crate::syscall::number::*;
+use crate::errors::*;
 
 pub unsafe fn init() {
     msr::wrmsr(msr::IA32_STAR, ((gdt::GDT_KERNEL_CODE as u64) << 3) << 32);
@@ -36,15 +37,16 @@ pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, _arg3: usi
     match num {
         SYS_EXIT => {
             // TODO: Kill or stop the task
-            use task::{scheduler::*, *};
+            use crate::task::{scheduler::*, *};
             kill();
             switch();
             0
         },
         SYS_TIME => {
-            use device::rtc::Rtc;
             use core::slice::from_raw_parts_mut;
-            use time::DateTime;
+
+            use crate::device::rtc::Rtc;
+            use crate::time::DateTime;
 
             let pointer = from_raw_parts_mut(arg1 as *mut DateTime, arg2);
             pointer[0] = Rtc::new().date();

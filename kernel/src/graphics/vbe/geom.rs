@@ -16,7 +16,7 @@
  */
 
 use super::colors::Rgb;
-use ::VBE_BUFFER;
+use crate::VBE_BUFFER;
 
 /// Shapes which can be drawn
 pub enum Shapes {

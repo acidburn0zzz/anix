@@ -14,12 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use fs::ext2::file::*;
-use memory::{map, paging::EntryFlags};
-use task::Task;
 use goblin::elf::*;
 use core::ptr::copy_nonoverlapping;
-use memory::consts::USER_OFFSET;
+
+use crate::memory::consts::USER_OFFSET;
+use crate::memory::{map, paging::EntryFlags};
+use crate::task::Task;
+use crate::fs::ext2::file::*;
 
 pub fn init() {
     load_elf("/bin/rust-test");

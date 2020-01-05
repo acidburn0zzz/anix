@@ -15,14 +15,15 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use idt::*;
-use super::irqid::*;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::InterruptStackFrame;
-use super::syscalls::*;
 use alloc::prelude::v1::{Vec};
 use spin::Mutex;
-use task::Task;
+
+use crate::task::Task;
+use crate::idt::*;
+use super::irqid::*;
+use super::syscalls::*;
 
 #[derive(Debug)]
 pub struct Event {

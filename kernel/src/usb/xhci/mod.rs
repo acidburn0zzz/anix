@@ -21,23 +21,8 @@ use core::slice;
 use plain::Plain;
 use alloc::prelude::v1::{Box, String};
 
-pub mod registers;
-pub mod port;
-pub mod trb;
-pub mod command;
-pub mod ring;
-pub mod context;
-pub mod doorbell;
-pub mod device;
-pub mod config;
-pub mod setup;
-pub mod descriptor;
-pub mod endpoint;
-pub mod interface;
-pub mod event;
-
-use drivers::{DriverInstance, Driver};
-use pci::BusDevice;
+use crate::drivers::{DriverInstance, Driver};
+use crate::pci::BusDevice;
 use crate::io::io::Io;
 use crate::io::dma::Dma;
 use crate::errors::*;
@@ -55,10 +40,25 @@ use self::endpoint::*;
 use self::interface::*;
 use self::trb::*;
 
+pub mod registers;
+pub mod port;
+pub mod trb;
+pub mod command;
+pub mod ring;
+pub mod context;
+pub mod doorbell;
+pub mod device;
+pub mod config;
+pub mod setup;
+pub mod descriptor;
+pub mod endpoint;
+pub mod interface;
+pub mod event;
+
 pub static S_PCI_DRIVER: PciDriver = PciDriver;
 
 pub fn init(){
-	crate::drivers::register_driver(&S_PCI_DRIVER);
+    crate::drivers::register_driver(&S_PCI_DRIVER);
 }
 
 pub struct PciDriver;
@@ -183,7 +183,7 @@ pub struct Xhci {
 }
 
 impl Xhci {
-	pub fn new(address: usize) -> Result<Xhci> {
+    pub fn new(address: usize) -> Result<Xhci> {
         let cap = unsafe { &mut *(address as *mut CapabilityRegs) };
         println!("  - CAP {:X}", address);
 

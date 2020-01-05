@@ -85,7 +85,7 @@ pub unsafe fn run_task(){
 
 #[naked]
 unsafe fn usermode(ip: u32, sp: u32, arg: u32) {
-    use gdt;
+    use crate::gdt;
     asm!("push r10
           push r11
           push r12

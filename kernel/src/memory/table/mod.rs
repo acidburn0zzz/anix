@@ -18,11 +18,12 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
-use memory::paging::*;
-use memory::FrameAllocator;
-use memory::Frame;
-use memory::paging::mapper::Mapper;
 use core::ops::{Deref, DerefMut};
+
+use crate::memory::paging::*;
+use crate::memory::FrameAllocator;
+use crate::memory::Frame;
+use crate::memory::paging::mapper::Mapper;
 
 pub struct Table<L: TableLevel> {
     entries: [Entry; ENTRY_COUNT],

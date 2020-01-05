@@ -15,15 +15,15 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use crate::fs::ext2::InodeMode;
-use crate::disk::sata::read_disk;
-use crate::errors::*;
-use super::Ext2Info;
-use ::read_num_bytes;
-
 use core::ptr::copy_nonoverlapping;
 use core::str::from_utf8;
 use alloc::prelude::v1::{ToString, String, Vec};
+
+use crate::fs::ext2::InodeMode;
+use crate::disk::sata::read_disk;
+use crate::errors::*;
+use crate::read_num_bytes;
+use super::Ext2Info;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Inode

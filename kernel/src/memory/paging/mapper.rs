@@ -15,12 +15,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
+use core::ptr::Unique;
 
 use super::{VirtualAddress, PhysicalAddress, Page, ENTRY_COUNT};
 use crate::memory::table::{Table, Level4};
-use memory::{PAGE_SIZE, Frame, FrameAllocator};
-use core::ptr::Unique;
-use memory::paging::EntryFlags;
+use crate::memory::{PAGE_SIZE, Frame, FrameAllocator};
+use crate::memory::paging::EntryFlags;
 
 #[derive(Copy, Clone)]
 pub struct Mapper {

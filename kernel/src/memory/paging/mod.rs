@@ -16,14 +16,16 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see https://www.gnu.org/licenses.
 */
 
-pub mod temporary_page;
-pub mod mapper;
+use bitflags::bitflags;
+use multiboot2::{ElfSection, ElfSectionFlags};
+
 use super::PAGE_SIZE;
 use super::Frame;
-use bitflags::bitflags;
 use self::temporary_page::TemporaryPage;
-use memory::table::ActivePageTable;
-use multiboot2::{ElfSection, ElfSectionFlags};
+use crate::memory::table::ActivePageTable;
+
+pub mod temporary_page;
+pub mod mapper;
 
 pub const ENTRY_COUNT: usize = 512;
 

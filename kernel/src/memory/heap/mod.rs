@@ -19,7 +19,8 @@ along with this program.  If not, see https://www.gnu.org/licenses.
 use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use spin::Mutex;
-use memory::consts::KERNEL_HEAP_OFFSET;
+
+use crate::memory::consts::KERNEL_HEAP_OFFSET;
 
 pub const HEAP_START: usize = KERNEL_HEAP_OFFSET.start;
 pub const HEAP_SIZE: usize = KERNEL_HEAP_OFFSET.size;

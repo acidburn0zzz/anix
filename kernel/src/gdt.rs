@@ -23,7 +23,8 @@ use x86::current::task::TaskStateSegment;
 use x86::bits64::segmentation::load_cs;
 use x86::segmentation::Descriptor;
 use x86::dtables::DescriptorTablePointer;
-use memory::consts::USER_TCB_OFFSET;
+
+use crate::memory::consts::USER_TCB_OFFSET;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub const GDT_NULL: usize = 0;

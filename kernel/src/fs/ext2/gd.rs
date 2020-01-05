@@ -15,9 +15,10 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use disk::sata::read_disk;
 use core::mem::size_of;
 use alloc::prelude::v1::Vec;
+
+use crate::disk::sata::read_disk;
 
 #[derive(Clone)]
 pub struct GDTable(pub Vec<Gd>);

@@ -19,8 +19,8 @@ pub mod colors;
 pub mod geom;
 use self::colors::*;
 use self::geom::Shapes;
-use ::VBE_BUFFER;
-use memory::{map, paging::EntryFlags};
+use crate::VBE_BUFFER;
+use crate::memory::{map, paging::EntryFlags};
 
 pub static FB_WIDTH: u32  = 1024;
 pub static FB_HEIGHT: u32 = 768;

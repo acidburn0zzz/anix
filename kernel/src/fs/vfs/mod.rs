@@ -18,7 +18,7 @@
 use alloc::prelude::v1::String;
 
 pub trait Vfs {
-    fn open(String) -> Self;
+    fn open(path: String) -> Self;
     fn read() -> String;
     fn write() -> Result<(), ()>; // For later
 }

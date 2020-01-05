@@ -16,9 +16,10 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
+use bitflags::bitflags;
+
 use crate::io::io::Io;
 use crate::io::mmio::Mmio;
-use bitflags::bitflags;
 
 pub static HCSPARAMS_N_PORTS_MASK: u32 = (15 << 0);
 pub static PORT_ENABLE: u32 = (1 << 2);

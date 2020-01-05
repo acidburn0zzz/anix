@@ -14,8 +14,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use device::rtc::Rtc;
 use core::fmt::*;
+
+use crate::device::rtc::Rtc;
 
 #[derive(Default, Copy, Clone)]
 pub struct DateTime {

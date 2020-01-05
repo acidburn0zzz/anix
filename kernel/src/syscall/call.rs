@@ -15,7 +15,7 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use errors::{Error, Result};
+use crate::errors::{Error, Result};
 use super::number::*;
 
 // Helpers (the 0, 1, 2, 3, 4, ... numbers in the function name is the number of arguments)
@@ -56,7 +56,7 @@ pub fn exit() -> usize {
     }
 }
 
-use time::DateTime;
+use crate::time::DateTime;
 pub fn date() -> DateTime {
     unsafe {
         let reference: &[DateTime] = &[DateTime::default()];
@@ -69,7 +69,7 @@ pub fn date() -> DateTime {
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
-        use syscall::{call::*, number::*};
+        use crate::syscall::{call::*, number::*};
         unsafe {
             let content = format!("{}", format_args!($($arg)*));
             let reference: &str = content.as_str().as_ref();
