@@ -63,9 +63,10 @@ pub struct Ext2Info<'a> {
 
 pub fn init() {
     use self::file::*;
-    let f = File::open("/home/user/hello.txt", "r");
+    use core::str::from_utf8;
+    let f = File::open("/home/user/hello.txt", O_RDONLY);
     let c = f.read();
-    println!("Content of file /home/user/hello.txt:\n{}", c);
+    println!("Content of file /home/user/hello.txt:\n{}", from_utf8(c).expect("cannot transform file /home/user/hello.txt to utf-8"));
 
     // let f = File::open("/usr/share/system/logo.bmp", "rb");
     // let c = f.read_binary();

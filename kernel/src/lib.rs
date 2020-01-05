@@ -85,6 +85,7 @@ pub mod serial; // Qemu serial logging
 use core::panic::PanicInfo;
 #[cfg(not(test))]
 use alloc::alloc::Layout;
+use alloc::borrow::ToOwned;
 use spin::Mutex;
 use x86::bits64::registers::*;
 use linked_list_allocator::LockedHeap;
@@ -176,7 +177,7 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
         Task::new("terminal", user::input::terminal as *const () as u64);
 
         // last task + 1 = first task
-        TASK_RUNNING = *CURRENT_TASKS.last().unwrap();
+        TASK_RUNNING = CURRENT_TASKS.last().unwrap().to_owned();
     }
 
     println!("DEBUG: Start elf loader");
@@ -196,7 +197,8 @@ fn panic(info: &PanicInfo) -> ! {
 #[cfg(not(test))]
 #[alloc_error_handler]
 fn handle_alloc_error(layout: Layout) -> ! {
-    panic!("Heap->Out of memory! Debug informations: {:#?}", layout);
+    println!("Heap->Out of memory! The size {:#x} bytes is too big", layout.size());
+    hlt_loop();
 }
 
 fn enable_nxe_bit() {

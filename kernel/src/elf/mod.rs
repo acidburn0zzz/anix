@@ -14,22 +14,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use goblin::elf::*;
 use core::ptr::copy_nonoverlapping;
+use goblin::elf::*;
 
-use crate::memory::consts::USER_OFFSET;
+use crate::fs::ext2::file::*;
 use crate::memory::{map, paging::EntryFlags};
 use crate::task::Task;
-use crate::fs::ext2::file::*;
+use crate::memory::consts::USER_OFFSET;
 
 pub fn init() {
+    // This Loader can load any static linked binary which doesn't use SSE registers
     load_elf("/bin/rust-test");
 }
 
 // TODO: Return a Result<T, E> value
 pub fn load_elf(path: &'static str) {
-    let f = File::open(path, "rb");
-    let content = f.read_binary();
+    let f = File::open(path, O_RDONLY);
+    let content = f.read();
     match Elf::parse(&content) {
         Ok(binary) => {
             let entry = binary.entry;
@@ -39,11 +40,19 @@ pub fn load_elf(path: &'static str) {
                     let start = ph.p_vaddr as u64;
                     let end = (ph.p_vaddr + ph.p_memsz) as u64;
 
+                    // TODO: To prevent warnings, use (this)[https://docs.rs/goblin/0.0.24/goblin/elf/section_header/constant.SHF_ALLOC.html]
+                    // and (this)[https://wiki.osdev.org/ELF_Tutorial#The_BSS_and_SHT_NOBITS]
                     if start < USER_OFFSET.start as u64 {
+                        println!("WARNING: The start of the program is under the user offset ({:#x} < {:#x})",
+                            start,
+                            USER_OFFSET.start);
                         ()
                     }
 
                     if end > USER_OFFSET.end as u64 {
+                        println!("WARNING: The end of the program is superior as the user offset ({:#x} < {:#x})",
+                            start,
+                            USER_OFFSET.start);
                         ()
                     }
                     unsafe {
@@ -66,10 +75,13 @@ pub fn load_elf(path: &'static str) {
                 }
             }
             unsafe {
-                Task::new("test", entry);
+                Task::new("test", entry); // TODO: Get the name of the program
             }
         },
-        Err(_) => ()
+        Err(e) => {
+            println!("[ELF ERROR]: {:?}", e);
+            ()
+        }
     }
     drop(f);
     drop(content);

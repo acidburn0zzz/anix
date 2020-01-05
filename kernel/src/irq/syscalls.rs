@@ -16,10 +16,12 @@
  */
 
 use x86::msr;
+use alloc::prelude::v1::ToOwned;
 
 use crate::gdt;
 use crate::syscall::number::*;
 use crate::errors::*;
+use crate::task::TASK_RUNNING;
 
 pub unsafe fn init() {
     msr::wrmsr(msr::IA32_STAR, ((gdt::GDT_KERNEL_CODE as u64) << 3) << 32);
@@ -31,17 +33,19 @@ pub unsafe fn init() {
     msr::wrmsr(msr::IA32_EFER, efer | 1);
 }
 
-pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, _arg3: usize, _arg4: usize,
-                                _arg5: usize, _bp: usize, _stack: &mut SyscallStack)
-                                -> usize {
+pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize,
+                                arg5: usize, _bp: usize, _stack: &mut SyscallStack) -> usize {
+    // println!("SYSCALL! Num: {} | Args: {}, {}, {}, {}, {} | Bp:  {} | Stack: {:#?}", num, arg1, arg2, arg3, arg4, arg5, bp, stack);
     match num {
         SYS_EXIT => {
             // TODO: Kill or stop the task
             use crate::task::{scheduler::*, *};
+            println!("exit({}) = 0", arg1);
             kill();
             switch();
             0
         },
+        // INPUT: arg1 -> buffer as DateTime
         SYS_TIME => {
             use core::slice::from_raw_parts_mut;
 
@@ -50,16 +54,198 @@ pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, _arg3: usi
 
             let pointer = from_raw_parts_mut(arg1 as *mut DateTime, arg2);
             pointer[0] = Rtc::new().date();
+            println!("time({:#x}) = 0", arg1);
             0
         },
+        // INPUT: arg1 -> string
+        //        arg2 -> len of string
         SYS_DEBUG => {
             use core::slice::from_raw_parts;
             use core::str::from_utf8;
 
-            println!("{}", from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8"));
+            print!("{}", from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8"));
+            0
+        },
+        // INPUT: arg1 -> path
+        //        arg2 -> len of path
+        //        arg3 -> flags
+        SYS_OPEN => {
+            use core::slice::from_raw_parts;
+            use core::str::from_utf8;
+            use crate::fs::ext2::file::File;
+
+            let path = from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8");
+            let id = TASK_RUNNING.to_owned().unwrap().next_file_id();
+            let file = File::open(path, arg3);
+            TASK_RUNNING.to_owned().unwrap().add_new_file(file);
+            println!("open({}, {:#x}) = {}", path, arg3, id);
+            id
+        },
+        // INPUT: arg1 -> file descriptor num
+        //        arg2 -> pointer of buffer
+        //        arg3 -> len of buffer
+        SYS_READ => {
+            use core::ptr::copy_nonoverlapping;
+            // TODO: from_raw_slice_mut?
+            let src = TASK_RUNNING.to_owned().unwrap().fds.lock()[arg1].content_ptr;
+            copy_nonoverlapping(src as *const u8,
+                arg2 as *mut u8,
+                arg3);
+            println!("read({}, {:#x}, {}) = {}", arg1, arg2, arg3, 0);
+            0
+        },
+        // INPUT: arg1 -> file descriptor num
+        //        arg2 -> pointer of buffer
+        //        arg3 -> len of buffer
+        SYS_WRITE => {
+            const STDIN_FILENO: usize = 0;
+            const STDOUT_FILENO: usize = 1;
+            const STDERR_FILENO: usize = 2;
+
+             match arg1 {
+                STDIN_FILENO => {
+                    use core::slice::from_raw_parts;
+                    use core::str::from_utf8;
+
+                    // Write to Stdin
+                    print!("STDIN: {}", from_utf8(from_raw_parts(arg2 as *const u8, arg3)).expect("cannot transform to utf8"));
+                    arg3
+                },
+                STDOUT_FILENO => {
+                    use core::slice::from_raw_parts;
+                    use core::str::from_utf8;
+
+                    // Write to Stdout
+                    print!("{}", from_utf8(from_raw_parts(arg2 as *const u8, arg3)).expect("cannot transform to utf8"));
+                    arg3
+                },
+                STDERR_FILENO => {
+                    use core::slice::from_raw_parts;
+                    use core::str::from_utf8;
+
+                    // Write to Error Stdout
+                    println!("ERROR: {}", from_utf8(from_raw_parts(arg2 as *const u8, arg3)).expect("cannot transform to utf8"));
+                    arg3
+                },
+                _ => {
+                    println!("Write files not implemented (fd num: {})", arg1);
+                    0
+                },
+             }
+        },
+        SYS_MMAP => {
+            let value: usize = 0x10000000000;
+            println!("mmap({:#x}, {}, {}, {}, {:#x}) = {:#x}", arg1, arg2, arg3, arg4, arg5, value);
+            // value
+            Error::mux(Err(Error::new(EINVAL)))
+        },
+        SYS_BRK => {
+            let value = 0x10000000000;
+            /*if arg1 == 0 {
+                value = 0xfff0000000 as usize;
+            }*/
+            println!("brk({:#x}) = {:#x}", arg1, value);
+            // value
+            value
+        },
+        SYS_SET_TID_ADDR => {
+            let value = TASK_RUNNING.to_owned().unwrap().getpid();
+            println!("set_tid_addr({:#x}) = {}", arg1, value);
+            value as usize
+            // 0
+        },
+        SYS_SIGACTION => {
+            println!("rt_sigaction({:#x}) = 0", arg1);
+            0
+        },
+        SYS_SIGPROCMASK => {
+            println!("rt_sigprocmask({:#x}) = 0", arg1);
+            0
+        },
+        // INPUT: arg1 -> new ss (used to change ss)
+        //        arg2 -> old ss (used to get ss)
+        SYS_SIGALSTACK => {
+            use crate::memory::consts::USER_OFFSET;
+
+            #[derive(Debug)]
+            struct SigaltStack {
+                ss_sp: usize,
+                ss_flags: u32,
+                ss_size: usize,
+            }
+            println!("sigalstack({:#x}, {:#x}) = 0", arg1, arg2);
+
+            if arg1 != 0 {}
+            if arg2 != 0 {
+                *(arg2 as *mut SigaltStack) = SigaltStack {
+                    ss_sp: USER_OFFSET.start,
+                    ss_flags: 2,
+                    ss_size: 1024,
+                };
+            }
+            0
+        },
+        // INPUT: arg1 -> option
+        //        arg2 -> addr
+        SYS_ARCHPRCTL => {
+            use x86_64::{
+                instructions::segmentation::{
+                    load_fs,
+                    load_gs
+                },
+                PrivilegeLevel::Ring3,
+                structures::gdt::SegmentSelector
+            };
+
+            use crate::memory::consts::USER_OFFSET;
+            pub const ARCH_SET_GS: usize = 0x1001;
+            pub const ARCH_SET_FS: usize = 0x1002;
+            pub const _ARCH_GET_FS: usize = 0x1003;
+            pub const ARCH_GET_GS: usize = 0x1004;
+
+            if arg2 > USER_OFFSET.end { return EPERM as usize; }
+            else if arg1 < ARCH_SET_FS || arg1 > ARCH_GET_GS{ return EINVAL as usize; }
+            // TODO: EFAULT if addr points to an unmapped address or is outside the process address space.
+            else {
+                match arg1 {
+                    ARCH_SET_GS => {
+                        /*
+                         * ARCH_SET_GS has always overwritten the index
+                         * and the base. Zero is the most sensible value
+                         * to put in the index, and is the only value that
+                         * makes any sense if FSGSBASE is unavailable.
+                         */
+                        load_fs(SegmentSelector::new(0, Ring3));
+                        msr::wrmsr(msr::IA32_GS_BASE, arg2 as u64);
+                    },
+                    ARCH_SET_FS => {
+                        /*
+                         * ARCH_SET_FS has always overwritten the index
+                         * and the base. Zero is the most sensible value
+                         * to put in the index, and is the only value that
+                         * makes any sense if FSGSBASE is unavailable.
+                         */
+                        load_gs(SegmentSelector::new(0, Ring3));
+                        msr::wrmsr(msr::IA32_FS_BASE, arg2 as u64);
+                    },
+                    _ => println!("sys_arch_prctl unknown option") // TODO: Return EINVAL,
+                };
+            }
+
+            println!("arch_prctl({:#x} {:#x}) = 0", arg1, arg2);
+            0
+        },
+        SYS_TKILL => {
+            use crate::task::{scheduler::*, *};
+            println!("tkill({}, {}) = 0", arg1, arg2);
+            kill();
+            switch();
             0
         }
-        _ => return ENOSYS as usize,
+        _ => {
+            println!("Unknown syscall: {}", num);
+            Error::mux(Err(Error::new(ENOSYS)))
+        },
     }
 }
 
@@ -162,7 +348,7 @@ pub unsafe extern fn syscall() {
     let rsp: usize;
     asm!("" : "={rsp}"(rsp) : : : "intel", "volatile");
 
-    let a = inner(&mut *(rsp as *mut SyscallStack));
+    let a = inner(&mut *(rsp as *mut SyscallStack)) as i32;
 
     asm!("" : : "{rax}"(a) : : "intel", "volatile");
 
@@ -200,4 +386,3 @@ pub struct SyscallStack {
     pub cs: usize,
     pub rflags: usize,
 }
-

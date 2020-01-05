@@ -14,7 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use alloc::prelude::v1::Vec;
+use alloc::prelude::v1::{ToOwned, Vec};
+use alloc::sync::Arc;
+use crate::fs::ext2::file::File;
+use spin::Mutex;
 
 pub mod scheduler;
 
@@ -30,7 +33,7 @@ pub enum TaskState{
 }
 
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Task {
     pub name: &'static str,
     pid: usize,
@@ -38,7 +41,7 @@ pub struct Task {
     pub rip: u64, // Instruction pointer (next instruction which will be executed)
     pub rbp: u64,
     pub state: TaskState,
-    // TODO: Files used by the task
+    pub fds: Arc<Mutex<Vec<File>>>, // Files used by the task
 }
 
 impl Default for Task {
@@ -50,6 +53,7 @@ impl Default for Task {
             rip: 0,
             rbp: 0,
             state: TaskState::Unknown,
+            fds: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
@@ -58,7 +62,7 @@ impl Task {
     /// Create a new alive task and add it in the tasks Vec
     pub unsafe fn new(name: &'static str, addr: u64) -> Self {
         // TODO: Map each stack pointer
-        let mut stack = vec![0; 5000].into_boxed_slice();
+        let mut stack = vec![0; 65_536].into_boxed_slice();
 
         let new_task = Self {
             name: name,
@@ -67,9 +71,10 @@ impl Task {
             rip: addr,
             rbp: 0,
             state: TaskState::Alive,
+            fds: Arc::new(Mutex::new(Vec::new())),
         };
 
-        let new_task_option = Some(new_task);
+        let new_task_option = Some(new_task.to_owned());
         CURRENT_TASKS.push(new_task_option);
         new_task
     }
@@ -85,21 +90,31 @@ impl Task {
 
     /// Give informations about the task
     pub fn information(&self){
-        println!("Task {} with pid {}\nRip: {}, Rbp: {} and Rsp: {}\nState: {:?}", self.name,
+        println!("Task {} with pid {}\nRip: {}, Rbp: {} and Rsp: {}\nState: {:?}\nOpened files: {:?}", self.name,
                                                                           self.pid,
                                                                           self.rip,
                                                                           self.rbp,
                                                                           self.rsp,
-                                                                          self.state);
+                                                                          self.state,
+                                                                          self.fds);
     }
 
     pub fn getpid(&self) -> usize{
         self.pid
     }
 
+    pub fn next_file_id(&self) -> usize {
+        self.fds.lock().len()
+    }
+    pub fn add_new_file(&self, file: File) {
+        unsafe {
+            CURRENT_TASKS[self.pid].to_owned().unwrap().fds.lock().push(file);
+        }
+    }
+
     // TODO: Create a next_to function to use self to save registers
 }
 
 pub unsafe fn kill(){
-    TASK_RUNNING.unwrap().kill();
+    TASK_RUNNING.to_owned().unwrap().kill();
 }

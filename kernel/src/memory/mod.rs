@@ -251,6 +251,42 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
             mapper.identity_map(frame, EntryFlags::PRESENT |
                                        EntryFlags::WRITABLE, allocator);
         }
+
+        let ahci_frames_start2 = Frame::containing_address(0x110000);
+        let ahci_frames_end2 = Frame::containing_address(0x200000);
+
+        for frame in Frame::range_inclusive(ahci_frames_start2, ahci_frames_end2) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
+
+        let program_start = Frame::containing_address(0x2000);
+        let program_end = Frame::containing_address(0x3000);
+
+        for frame in Frame::range_inclusive(program_start, program_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
+
+        let program2_start = Frame::containing_address(0xb000000);
+        let program2_end = Frame::containing_address(0xb000010);
+
+        for frame in Frame::range_inclusive(program2_start, program2_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
+
+        let program3_start = Frame::containing_address(0x3c);
+        let program3_end = Frame::containing_address(0x10000);
+
+        for frame in Frame::range_inclusive(program3_start, program3_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
      });
 
     let old_table = active_table.switch(new_table);

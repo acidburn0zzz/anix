@@ -1,0 +1,15 @@
+[package]
+name = "rust-test"
+version = "0.0.0"
+authors = ["Nifou <nfouquet@mailfence.com>"]
+edition = "2018"
+
+[profile.dev]
+panic = "abort"
+lto = true # Enable Link Time Optimization
+opt-level = 'z'  # Optimize for size.
+
+[profile.release]
+panic = "abort"
+lto = true # Enable Link Time Optimization
+opt-level = 'z'  # Optimize for size.

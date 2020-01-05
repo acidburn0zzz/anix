@@ -1,18 +1,23 @@
 . ../mk/colors.sh
 
-# TODO: Create a config file for each software to know if it is a library or a
-# binary
 rm -rf build
-mkdir build
+mkdir -p build/libs
+mkdir -p build/bins
 
-# Compile
-for src in $(ls "src") ; do
-  echo "    ${ORANGE}Compile userspace/src/$src${NORMAL}" | tr -d "'"
-  make -C "src/$src" 1> /dev/null 2> /dev/null
+# Compile libs
+for libSrc in $(ls "src/libs") ; do
+  echo "    ${ORANGE}Compile library userspace/src/libs/$libSrc${NORMAL}" | tr -d "'"
+  make -s -C "src/libs/$libSrc"
 done
 
-# Copy
-for build in $(ls "build") ; do
-  echo "    ${ORANGE}Copy userspace/build/$build to root/bin/$build${NORMAL}" | tr -d "'"
-  cp "build/$build" "../root/bin/$build"
+# Compile libs
+for binSrc in $(ls "src/bins") ; do
+  echo "    ${ORANGE}Compile binary userspace/src/bins/$binSrc${NORMAL}" | tr -d "'"
+  make -s -C "src/bins/$binSrc"
+done
+
+# Copy binaries
+for build in $(ls "build/bins") ; do
+  echo "    ${ORANGE}Copy userspace/build/bins/$build to root/bin/$build${NORMAL}" | tr -d "'"
+  cp "build/bins/$build" "../root/bin/$build"
 done

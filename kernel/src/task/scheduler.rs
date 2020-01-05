@@ -27,13 +27,13 @@ pub unsafe fn switch() {
     save_registers();
 
     // Change task
-    if (TASK_RUNNING.unwrap().pid + 1) < CURRENT_TASKS.len() {
+    if (TASK_RUNNING.to_owned().unwrap().pid + 1) < CURRENT_TASKS.len() {
         // Select the next task
-        TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.unwrap().pid + 1];
+        TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.to_owned().unwrap().pid + 1].to_owned();
     }
     else {
         // Come back on the start of the tasks array
-        TASK_RUNNING = CURRENT_TASKS[0];
+        TASK_RUNNING = CURRENT_TASKS[0].to_owned();
     }
 
     // Restore registers
@@ -49,15 +49,15 @@ pub unsafe fn save_registers() {
     use x86::bits64::registers::*;
 
     // Copy the registers in the tasks array
-    TASK_RUNNING.unwrap().rsp = rsp(); // Copy the stack
-    TASK_RUNNING.unwrap().rip = rip(); // Copy the instruction pointer
-    TASK_RUNNING.unwrap().rbp = rbp(); // Copy the control register
+    TASK_RUNNING.to_owned().unwrap().rsp = rsp(); // Copy the stack
+    TASK_RUNNING.to_owned().unwrap().rip = rip(); // Copy the instruction pointer
+    TASK_RUNNING.to_owned().unwrap().rbp = rbp(); // Copy the control register
 }
 
 /// Restore the state of the registers saved in the tasks array
 pub unsafe fn restore_registers(){
-    let esp: u64 = TASK_RUNNING.unwrap().rsp;
-    let ebp: u64 = TASK_RUNNING.unwrap().rbp;
+    let esp: u64 = TASK_RUNNING.to_owned().unwrap().rsp;
+    let ebp: u64 = TASK_RUNNING.to_owned().unwrap().rbp;
 
     // Get the state of the registers
     asm!("movq %rsp, %rax"
@@ -80,7 +80,7 @@ pub unsafe fn run_task(){
     // TODO: Embed fs, gs, ss, cs and es in the Task struct to choose if the task will be run in
     // userspace or not + load them with x86::segmentation::load_{es, cs, ss, fs, gs}
 
-    usermode(TASK_RUNNING.unwrap().rip as u32, TASK_RUNNING.unwrap().rsp as u32, 0);
+    usermode(TASK_RUNNING.to_owned().unwrap().rip as u32, TASK_RUNNING.to_owned().unwrap().rsp as u32, 0);
 }
 
 #[naked]
