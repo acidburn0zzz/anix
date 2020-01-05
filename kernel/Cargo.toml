@@ -19,6 +19,10 @@ x86_64 = "0.7.5"
 rlibc = "1.0.0"
 plain = "0.2"
 
+[dependencies.linked_list_allocator]
+features = ["use_spin"]
+version = "0.6.4"
+
 [dependencies.goblin]
 default-features = false
 features = ["elf32", "elf64", "endian_fd", "alloc"]

@@ -186,12 +186,11 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
 
     let mut active_table = remap_the_kernel(&mut area_frame_allocator, start, end, elf_sections_tag);
 
-    use crate::{HEAP_START, HEAP_SIZE};
+    use self::consts::KERNEL_HEAP_OFFSET;
+    let kernel_heap_start_page = Page::containing_address(KERNEL_HEAP_OFFSET.start);
+    let kernel_heap_end_page = Page::containing_address(KERNEL_HEAP_OFFSET.end);
 
-    let heap_start_page = Page::containing_address(HEAP_START);
-    let heap_end_page = Page::containing_address(HEAP_START + HEAP_SIZE - 1);
-
-    for page in Page::range_inclusive(heap_start_page, heap_end_page) {
+    for page in Page::range_inclusive(kernel_heap_start_page, kernel_heap_end_page) {
         active_table.map(page, EntryFlags::WRITABLE |
                                EntryFlags::USER_ACCESSIBLE,
                                &mut area_frame_allocator);

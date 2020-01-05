@@ -17,7 +17,6 @@
  */
 
 use core::{ptr, u32};
-use alloc::prelude::v1::String;
 
 use crate::io::{mmio::Mmio, dma::Dma, io::Io};
 use crate::errors::*;
@@ -174,45 +173,58 @@ impl HbaPort {
             cmdfis.counth.write(0);
         })?;
 
+
         if self.ata_stop(slot).is_ok() {
-            let mut serial = String::new();
+            let mut serial = [0; 20];
+            let mut serial_cursor = 0;
             for word in 10..20 {
                 let d = dest[word];
-                let a = ((d >> 8) as u8) as char;
-                if a != '\0' {
-                    serial.push(a);
+                let a = (d >> 8) as u8;
+                if a != 0 {
+                    serial[serial_cursor] = a;
+                    serial_cursor += 1;
                 }
-                let b = (d as u8) as char;
-                if b != '\0' {
-                    serial.push(b);
+                let b = d as u8;
+                if b != 0 {
+                    serial[serial_cursor] = b;
+                    serial_cursor += 1;
                 }
             }
+            let serial_string = core::str::from_utf8(&serial).expect("cannot convert serial to utf8");
 
-            let mut firmware = String::new();
+            let mut firmware = [0; 8];
+            let mut firmware_cursor = 0;
             for word in 23..27 {
                 let d = dest[word];
-                let a = ((d >> 8) as u8) as char;
-                if a != '\0' {
-                    firmware.push(a);
+                let a = (d >> 8) as u8;
+                if a != 0 {
+                    firmware[firmware_cursor] = a;
+                    firmware_cursor += 1;
                 }
-                let b = (d as u8) as char;
-                if b != '\0' {
-                    firmware.push(b);
+                let b = d as u8;
+                if b != 0 {
+                    firmware[firmware_cursor] = b;
+                    firmware_cursor += 1;
                 }
             }
+            let firmware_string = core::str::from_utf8(&firmware).expect("cannot convert firmware to utf8");
 
-            let mut model = String::new();
+            let mut model = [0; 40];
+            let mut model_cursor = 0;
             for word in 27..47 {
                 let d = dest[word];
-                let a = ((d >> 8) as u8) as char;
-                if a != '\0' {
-                    model.push(a);
+                let a = (d >> 8) as u8;
+                if a != 0 {
+                    model[model_cursor] = a;
+                    model_cursor += 1;
                 }
-                let b = (d as u8) as char;
-                if b != '\0' {
-                    model.push(b);
+                let b = d as u8;
+                if b != 0 {
+                    model[model_cursor] = b;
+                    model_cursor += 1;
                 }
             }
+            let model_string = core::str::from_utf8(&model).expect("cannot convert model to utf8");
 
             let mut sectors = (dest[100] as u64) |
                               ((dest[101] as u64) << 16) |
@@ -226,7 +238,12 @@ impl HbaPort {
                 48
             };
 
-            println!("{}", format!("    - Firmware: {} Model: {} {}-bit LBA Size: {} MB\n", firmware.trim(), model.trim(), lba_bits, sectors / 2048));
+            println!("{}", format!("
+    - Serial: {}
+    - Firmware: {}
+    - Model: {}
+    - LBA {}-bit
+    - Size: {} MB\n", serial_string, firmware_string, model_string, lba_bits, sectors / 2048));
 
             Some(sectors * 512)
         } else {

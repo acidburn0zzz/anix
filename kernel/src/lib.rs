@@ -85,18 +85,13 @@ pub mod serial; // Qemu serial logging
 use core::panic::PanicInfo;
 #[cfg(not(test))]
 use alloc::alloc::Layout;
-
 use spin::Mutex;
 use x86::bits64::registers::*;
+use linked_list_allocator::LockedHeap;
 
 use idt::PICS;
 use memory::{
     *,
-    heap::{
-        HEAP_START,
-        HEAP_SIZE,
-        BumpAllocator
-    },
     table::ActivePageTable,
     paging::{
         EntryFlags,
@@ -106,8 +101,7 @@ use common::hlt_loop;
 use task::{Task, CURRENT_TASKS, TASK_RUNNING};
 
 #[global_allocator]
-pub static HEAP_ALLOCATOR: BumpAllocator =
-                BumpAllocator::new(HEAP_START, HEAP_START + HEAP_SIZE);
+pub static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> =
                 Mutex::new(None);
 pub static mut ACTIVE_TABLE: Mutex<Option<ActivePageTable>> = Mutex::new(None);
@@ -143,7 +137,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     enable_nxe_bit();
     enable_write_protect_bit();
 
-
     unsafe {
         let boot_info = multiboot2::load(multiboot_information_address);
 
@@ -155,6 +148,9 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
         );
         *VBE_BUFFER.lock() = boot_info.vbe_info_tag().unwrap().mode_info.framebuffer_base_ptr;
     }
+
+    println!("DEBUG: Init the heap");
+    memory::heap::init();
 
     println!("DEBUG: Start SATA driver");
     disk::sata::init();
@@ -193,15 +189,14 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{:?}", info);
+    println!("System->Panic! Debug informations: {:#?}", info);
     hlt_loop();
 }
 
 #[cfg(not(test))]
 #[alloc_error_handler]
 fn handle_alloc_error(layout: Layout) -> ! {
-    println!("\n{:#?}", layout);
-    hlt_loop();
+    panic!("Heap->Out of memory! Debug informations: {:#?}", layout);
 }
 
 fn enable_nxe_bit() {
