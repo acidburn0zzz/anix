@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+use alloc::prelude::v1::String;
 
 use self::colors::*;
 use self::geom::Shapes;
@@ -42,12 +43,12 @@ pub fn init() {
         x: 0,
         y: 0,
         w: FB_WIDTH,
-        h: FB_HEIGHT - 30,
+        h: FB_HEIGHT/* - 30*/,
         color: Rgb::new(78, 193, 255)
     }.draw();
 
     // Taskbar
-    Shapes::Rect {
+    /*Shapes::Rect {
         x: 0,
         y: FB_HEIGHT - 30,
         w: FB_WIDTH,
@@ -72,13 +73,21 @@ pub fn init() {
         w: 300,
         h: 200,
         color: Rgb::new(57, 57, 57)
+    }.draw();*/
+
+    Shapes::Text {
+        x: 0,
+        y: 0,
+        text: String::from("Test text window:\nHello world!\nThis is text is written by the font8x8 crate in the VBE buffer!"),
+        color: Rgb::new(255, 255, 255),
     }.draw();
-    Shapes::Rect {
+
+    /*Shapes::Rect {
         x: FB_WIDTH - 450,
         y: FB_HEIGHT - 350,
         w: 400,
         h: 300,
         color: Rgb::new(57, 57, 57)
-    }.draw();
+    }.draw();*/
 }
 

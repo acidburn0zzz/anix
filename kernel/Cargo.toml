@@ -20,6 +20,11 @@ rlibc = "1.0.0"
 plain = "0.2.3"
 bit_field = "0.10.0"
 
+[dependencies.font8x8]
+version = "0.2.5"
+default-features = false
+features = ["unicode"]
+
 [dependencies.linked_list_allocator]
 features = ["use_spin"]
 version = "0.6.4"
