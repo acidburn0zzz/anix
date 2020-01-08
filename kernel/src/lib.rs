@@ -77,6 +77,7 @@ pub mod io; // IO (memory) management
 pub mod syscall; // Syscalls management
 pub mod device; // Devices management
 pub mod elf; // Elf files loader
+pub mod sse; // Enable SSE
 
 #[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
 pub mod serial; // Qemu serial logging
@@ -114,10 +115,12 @@ pub static mut VBE_BUFFER: Mutex<u32> =
 #[no_mangle] // don't mangle the name of this function
 #[cfg(not(test))]
 pub extern "C" fn rust_main(multiboot_information_address: usize) {
-    // TODO: enable SSE (see the sse.rs file in the bootloader crate)
     screen::logo_screen();
 
     println!("Welcome!\nAnix v0.0.3 is starting...");
+
+    println!("DEBUG: enable SSE");
+    sse::enable_sse();
 
     unsafe {
         println!("DEBUG: init GDT");
