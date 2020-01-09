@@ -107,7 +107,7 @@ pub static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 pub static mut AREA_FRAME_ALLOCATOR: Mutex<Option<AreaFrameAllocator>> =
                 Mutex::new(None);
 pub static mut ACTIVE_TABLE: Mutex<Option<ActivePageTable>> = Mutex::new(None);
-pub static mut VBE_BUFFER: Mutex<u32> =
+pub static mut VESA_BUFFER: Mutex<u32> =
                 Mutex::new(0);
 
 /// This function is the entry point, since the linker looks for a function
@@ -151,7 +151,7 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
             boot_info.elf_sections_tag().expect("cannot get elf sections tag"),
             boot_info.memory_map_tag().expect("Memory map tag required").memory_areas()
         );
-        *VBE_BUFFER.lock() = boot_info.vbe_info_tag().unwrap().mode_info.framebuffer_base_ptr;
+        *VESA_BUFFER.lock() = boot_info.vbe_info_tag().unwrap().mode_info.framebuffer_base_ptr;
     }
 
     println!("DEBUG: Init the heap");
@@ -161,7 +161,7 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     disk::sata::init();
 
     println!("DEBUG: Start VBE driver");
-    graphics::vbe::init();
+    graphics::vesa::init();
 
     println!("DEBUG: Start PCI driver");
     pci::init();

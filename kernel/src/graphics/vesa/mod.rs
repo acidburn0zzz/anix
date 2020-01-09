@@ -18,7 +18,7 @@ use alloc::prelude::v1::String;
 
 use self::colors::*;
 use self::geom::Shapes;
-use crate::VBE_BUFFER;
+use crate::VESA_BUFFER;
 use crate::memory::{map, paging::EntryFlags};
 
 pub mod colors;
@@ -32,7 +32,7 @@ pub static FB_DEPTH: u32  = 4;
 pub fn init() {
     println!("Vbe driver is starting...");
     unsafe {
-        let addr = *VBE_BUFFER.lock();
+        let addr = *VESA_BUFFER.lock();
         map(addr as usize,
             addr as usize +
             FB_WIDTH as usize * FB_HEIGHT as usize * FB_DEPTH as usize,

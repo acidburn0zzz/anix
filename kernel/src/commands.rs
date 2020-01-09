@@ -72,10 +72,10 @@ pub fn test_mem(_cmd: String) {
 }
 
 pub fn startflame(_cmd: String) {
-    use crate::graphics::vbe;
+    use crate::graphics::vesa;
     println!("\nFlame is starting...");
 
-    vbe::init();
+    vesa::init();
 
     // TODO: Jump in userspace, start filesystem and start graphics
 

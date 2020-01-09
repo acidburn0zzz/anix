@@ -20,7 +20,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use alloc::prelude::v1::String;
 
 use super::colors::Rgb;
-use crate::VBE_BUFFER;
+use crate::VESA_BUFFER;
 use super::{FB_WIDTH, FB_HEIGHT};
 
 /// Shapes which can be drawn
@@ -38,8 +38,8 @@ pub enum Shapes {
 impl Shapes {
     pub fn draw(&self) {
         unsafe {
-            if *VBE_BUFFER.lock() != 0 {
-                let buf = *VBE_BUFFER.lock() as *mut u32;
+            if *VESA_BUFFER.lock() != 0 {
+                let buf = *VESA_BUFFER.lock() as *mut u32;
                 match self {
                     Shapes::Point {x, y, color} => {
                         // TODO: Use a double-buffering with a task to update the screen
@@ -81,7 +81,7 @@ impl Printer {
         X_POS.store(x, Ordering::SeqCst);
         Y_POS.store(y, Ordering::SeqCst);
         unsafe {
-            let buf = *VBE_BUFFER.lock() as *mut u32;
+            let buf = *VESA_BUFFER.lock() as *mut u32;
             Self {
                 buffer: buf,
                 color,
