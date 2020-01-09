@@ -23,6 +23,7 @@ use crate::memory::{map, paging::EntryFlags};
 
 pub mod colors;
 pub mod geom;
+pub mod text;
 
 pub static FB_WIDTH: u32  = 1024;
 pub static FB_HEIGHT: u32 = 768;
