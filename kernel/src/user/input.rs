@@ -42,8 +42,8 @@ lazy_static! {
 pub fn terminal() {
     use crate::syscall::call::exit;
     use crate::debug;
-    debug!("The terminal doesn't work yet.
-            But, i can get the time: {} and i can convert it to a timestamp: {} ;)",
+    debug!("The terminal doesn't work yet. \
+            But, I can get the time: {} and I can convert it to a timestamp: {} ;)\n",
             date(), date().to_timestamp());
     /*use ::debug;
     for e in &mut *EVENTS.lock() {

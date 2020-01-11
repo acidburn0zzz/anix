@@ -66,7 +66,7 @@ pub mod user; // User functionnalities (TODO)
 pub mod common; // Common functions
 pub mod irq; // Interrupts management
 pub mod memory; // Memory management
-pub mod task; // Tasks management
+pub mod processes; // Processes management
 pub mod errors; // Errors
 pub mod pci; // Pci management (TODO)
 pub mod disk; // Disk read and write (support ide (not tested) and sata)
@@ -86,7 +86,7 @@ pub mod serial; // Qemu serial logging
 use core::panic::PanicInfo;
 #[cfg(not(test))]
 use alloc::alloc::Layout;
-use alloc::borrow::ToOwned;
+use alloc::prelude::v1::String;
 use spin::Mutex;
 use x86::bits64::registers::*;
 use linked_list_allocator::LockedHeap;
@@ -100,7 +100,7 @@ use memory::{
     }
 };
 use common::hlt_loop;
-use task::{Task, CURRENT_TASKS, TASK_RUNNING};
+use processes::Process;
 
 #[global_allocator]
 pub static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
@@ -177,11 +177,11 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     unsafe {
         map(system as *const () as usize, system as *const () as usize + 15,
         EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
-        Task::new("system", system as *const () as u64);
-        Task::new("terminal", user::input::terminal as *const () as u64);
+        Process::new(String::from("system"), system as *const () as u64);
+        Process::new(String::from("terminal"), user::input::terminal as *const () as u64);
 
         // last task + 1 = first task
-        TASK_RUNNING = CURRENT_TASKS.last().unwrap().to_owned();
+        // TASK_RUNNING = CURRENT_TASKS.last().unwrap().to_owned();
     }
 
     println!("DEBUG: Start elf loader");
@@ -222,8 +222,6 @@ fn enable_write_protect_bit() {
 }
 
 fn system() {
-    use task::scheduler::switch;
-    unsafe {
-        switch();
-    }
+    use processes::scheduler::switch;
+    switch();
 }

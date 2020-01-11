@@ -17,15 +17,14 @@
 
 use lazy_static::lazy_static;
 use x86_64::structures::idt::InterruptStackFrame;
-use alloc::prelude::v1::{Vec};
 use spin::Mutex;
 
-use crate::task::Task;
+// use crate::task::Task;
 use crate::idt::*;
 use super::irqid::*;
 use super::syscalls::*;
 
-#[derive(Debug)]
+/*#[derive(Debug)]
 pub struct Event {
     pub r#type: EventType,
     used_by: Task, // TODO: Use just a &'static str with the task name. Use array or Vec<T>?
@@ -55,14 +54,14 @@ pub enum EventType {
 
 lazy_static!{
     pub static ref EVENTS: Mutex<Vec<Event>> = Mutex::new(Vec::new());
-}
+}*/
 
 pub extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
-    use crate::task::scheduler::schedule;
+    use crate::processes::scheduler::switch;
 
-    // Call the schedule function for switching task
+    // Call the schedule function to switch to the next process
+    switch();
     unsafe {
-        schedule();
         PICS.lock().notify_end_of_interrupt(TIMER_ID)
     }
 }
@@ -73,7 +72,11 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
 
     lazy_static! {
         static ref KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> =
-            Mutex::new(Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::MapLettersToUnicode));
+            Mutex::new(Keyboard::new(
+                    layouts::Us104Key,
+                    ScancodeSet1,
+                    HandleControl::MapLettersToUnicode)
+            );
     }
 
     let mut keyboard = KEYBOARD.lock();
@@ -81,8 +84,8 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
 
     let scancode: u8 = unsafe { port.read() };
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-        if let Some(key) = keyboard.process_keyevent(key_event) {
-            EVENTS.lock().push(match key {
+        if let Some(_key) = keyboard.process_keyevent(key_event) {
+            /*EVENTS.lock().push(match key {
                 DecodedKey::Unicode(character) =>
                     Event {
                         r#type: EventType::Keyboard(character),
@@ -93,7 +96,7 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Inte
                         r#type: EventType::Keyboard(key as u8 as char),
                         used_by: Task::default(),
                     },
-            });
+            });*/
         }
     }
     unsafe { PICS.lock().notify_end_of_interrupt(KEYBOARD_ID) }

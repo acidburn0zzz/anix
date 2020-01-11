@@ -19,7 +19,7 @@ use goblin::elf::*;
 
 use crate::fs::ext2::file::*;
 use crate::memory::{map, paging::EntryFlags};
-use crate::task::Task;
+use crate::processes::Process;
 use crate::memory::consts::USER_OFFSET;
 
 pub fn init() {
@@ -74,9 +74,8 @@ pub fn load_elf(path: &'static str) {
                     }
                 }
             }
-            unsafe {
-                Task::new("test", entry); // TODO: Get the name of the program
-            }
+            use alloc::prelude::v1::String;
+            Process::new(String::from("test"), entry); // TODO: Get the name of the program
         },
         Err(e) => {
             println!("[ELF ERROR]: {:?}", e);

@@ -14,77 +14,54 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+pub mod scheduler;
+pub mod context;
 
-use crate::task::*;
+use alloc::prelude::v1::String;
 
-/// Change the current task
-pub unsafe fn schedule(){
-    switch();
+use self::scheduler::*;
+
+#[derive(Clone, Debug)]
+pub struct Process {
+    name: String,
+    pid: usize,
+    registers: context::Registers,
 }
 
-pub unsafe fn switch() {
-    // Save registers
-    save_registers();
+impl Process {
+    pub fn new(name: String, entry: u64) -> Self {
+        let stack = vec![0; 65_536].into_boxed_slice().as_mut_ptr() as u64;
+        let mut new_process = Self {
+          name,
+          pid: get_scheduler().request_pid(),
+          registers: context::Registers::default(),
+        };
 
-    // Change task
-    if (TASK_RUNNING.to_owned().unwrap().pid + 1) < CURRENT_TASKS.len() {
-        // Select the next task
-        TASK_RUNNING = CURRENT_TASKS[TASK_RUNNING.to_owned().unwrap().pid + 1].to_owned();
+        // Set entry
+        new_process.set_entry(entry);
+
+        // Set the stack
+        new_process.registers.rsp = stack;
+
+        get_scheduler().add_process(new_process.clone());
+
+        new_process
     }
-    else {
-        // Come back on the start of the tasks array
-        TASK_RUNNING = CURRENT_TASKS[0].to_owned();
+
+    unsafe fn jmp(&self) {
+        usermode(self.registers.rip, self.registers.rsp, 0);
     }
 
-    // Restore registers
-    restore_registers();
-
-    // Run task
-    run_task();
-
-}
-
-/// Save the state of the registers in the tasks array
-pub unsafe fn save_registers() {
-    use x86::bits64::registers::*;
-
-    // Copy the registers in the tasks array
-    TASK_RUNNING.to_owned().unwrap().rsp = rsp(); // Copy the stack
-    TASK_RUNNING.to_owned().unwrap().rip = rip(); // Copy the instruction pointer
-    TASK_RUNNING.to_owned().unwrap().rbp = rbp(); // Copy the control register
-}
-
-/// Restore the state of the registers saved in the tasks array
-pub unsafe fn restore_registers(){
-    let esp: u64 = TASK_RUNNING.to_owned().unwrap().rsp;
-    let ebp: u64 = TASK_RUNNING.to_owned().unwrap().rbp;
-
-    // Get the state of the registers
-    asm!("movq %rsp, %rax"
-        :
-        : "{rax}"(esp)
-        : "memory"
-        : "volatile"
-        );
-
-    asm!("movq %rbp, %rax"
-        :
-        : "{rax}"(ebp)
-        : "memory"
-        : "volatile"
-        );
-}
-
-/// Jump to the function
-pub unsafe fn run_task(){
-    // TODO: Embed fs, gs, ss, cs and es in the Task struct to choose if the task will be run in
-    // userspace or not + load them with x86::segmentation::load_{es, cs, ss, fs, gs}
-
-    usermode(TASK_RUNNING.to_owned().unwrap().rip as u32, TASK_RUNNING.to_owned().unwrap().rsp as u32, 0);
+    fn set_entry(&mut self, entry: u64) {
+        self.registers.rip = entry;
+    }
+    pub fn getpid(&self) -> usize {
+        self.pid
+    }
 }
 
 #[naked]
-unsafe fn usermode(ip: u32, sp: u32, arg: u32) {
+unsafe fn usermode(ip: u64, sp: u64, arg: u64) {
     use crate::gdt;
     asm!("push r10
           push r11

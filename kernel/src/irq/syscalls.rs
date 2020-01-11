@@ -16,12 +16,11 @@
  */
 
 use x86::msr;
-use alloc::prelude::v1::ToOwned;
 
 use crate::gdt;
 use crate::syscall::number::*;
 use crate::errors::*;
-use crate::task::TASK_RUNNING;
+// use crate::processes::processes_RUNNING;
 
 pub unsafe fn init() {
     msr::wrmsr(msr::IA32_STAR, ((gdt::GDT_KERNEL_CODE as u64) << 3) << 32);
@@ -35,11 +34,10 @@ pub unsafe fn init() {
 
 pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize,
                                 arg5: usize, _bp: usize, _stack: &mut SyscallStack) -> usize {
-    // println!("SYSCALL! Num: {} | Args: {}, {}, {}, {}, {} | Bp:  {} | Stack: {:#?}", num, arg1, arg2, arg3, arg4, arg5, bp, stack);
     match num {
         SYS_EXIT => {
-            // TODO: Kill or stop the task
-            use crate::task::{scheduler::*, *};
+            // TODO: Kill or stop the processes
+            use crate::processes::scheduler::{switch, kill};
             println!("exit({}) = 0", arg1);
             kill();
             switch();
@@ -70,28 +68,29 @@ pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, arg3: usiz
         //        arg2 -> len of path
         //        arg3 -> flags
         SYS_OPEN => {
-            use core::slice::from_raw_parts;
-            use core::str::from_utf8;
-            use crate::fs::ext2::file::File;
+            // use core::slice::from_raw_parts;
+            // use core::str::from_utf8;
+            // use crate::fs::ext2::file::File;
 
-            let path = from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8");
-            let id = TASK_RUNNING.to_owned().unwrap().next_file_id();
+            /*let path = from_utf8(from_raw_parts(arg1 as *const u8, arg2)).expect("cannot transform to utf8");
+            let id = processes_RUNNING.to_owned().unwrap().next_file_id();
             let file = File::open(path, arg3);
-            TASK_RUNNING.to_owned().unwrap().add_new_file(file);
+            processes_RUNNING.to_owned().unwrap().add_new_file(file);
             println!("open({}, {:#x}) = {}", path, arg3, id);
-            id
+            id*/
+            0
         },
         // INPUT: arg1 -> file descriptor num
         //        arg2 -> pointer of buffer
         //        arg3 -> len of buffer
         SYS_READ => {
-            use core::ptr::copy_nonoverlapping;
+            // use core::ptr::copy_nonoverlapping;
             // TODO: from_raw_slice_mut?
-            let src = TASK_RUNNING.to_owned().unwrap().fds.lock()[arg1].content_ptr;
+            /*let src = processes_RUNNING.to_owned().unwrap().fds.lock()[arg1].content_ptr;
             copy_nonoverlapping(src as *const u8,
                 arg2 as *mut u8,
                 arg3);
-            println!("read({}, {:#x}, {}) = {}", arg1, arg2, arg3, 0);
+            println!("read({}, {:#x}, {}) = {}", arg1, arg2, arg3, 0);*/
             0
         },
         // INPUT: arg1 -> file descriptor num
@@ -149,10 +148,10 @@ pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, arg3: usiz
             value
         },
         SYS_SET_TID_ADDR => {
-            let value = TASK_RUNNING.to_owned().unwrap().getpid();
-            println!("set_tid_addr({:#x}) = {}", arg1, value);
-            value as usize
-            // 0
+            // let value = processes_RUNNING.to_owned().unwrap().getpid();
+            // println!("set_tid_addr({:#x}) = {}", arg1, value);
+            // value as usize
+            0
         },
         SYS_SIGACTION => {
             println!("rt_sigaction({:#x}) = 0", arg1);
@@ -236,7 +235,7 @@ pub unsafe extern fn do_syscall(num: usize, arg1: usize, arg2: usize, arg3: usiz
             0
         },
         SYS_TKILL => {
-            use crate::task::{scheduler::*, *};
+            use crate::processes::scheduler::{kill, switch};
             println!("tkill({}, {}) = 0", arg1, arg2);
             kill();
             switch();
