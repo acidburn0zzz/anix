@@ -16,6 +16,8 @@
  */
 
 use alloc::prelude::v1::Vec;
+use lazy_static::lazy_static;
+use spin::RwLock;
 /*use x86_64::{
     structures::paging::frame::PhysFrame,
     registers::control::{
@@ -26,14 +28,8 @@ use alloc::prelude::v1::Vec;
 
 use super::Process;
 
-// TODO: lazy_static! + RwLock
-pub static mut SCHEDULER: Scheduler = Scheduler::new();
-
-/// Create a safe interface to get the scheduler
-pub fn get_scheduler() -> &'static mut Scheduler {
-    unsafe {
-        &mut SCHEDULER
-    }
+lazy_static! {
+    pub static ref SCHEDULER: RwLock<Scheduler> = RwLock::new(Scheduler::new());
 }
 
 pub struct Scheduler {
@@ -42,7 +38,7 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             processes: Vec::new(),
             current_process: None,
@@ -173,12 +169,16 @@ impl Scheduler {
 
 /// Kill the current process
 pub fn kill() {
-    get_scheduler().kill_current_process();
+    unsafe {
+        SCHEDULER.force_write_unlock();
+    }
+    SCHEDULER.try_write().unwrap().kill_current_process();
 }
 
 /// Switch to the next process
 pub fn switch() {
     unsafe {
-        get_scheduler().schedule();
+        SCHEDULER.force_write_unlock();
+        SCHEDULER.try_write().unwrap().schedule();
     }
 }

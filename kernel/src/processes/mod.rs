@@ -33,7 +33,7 @@ impl Process {
         let stack = vec![0; 65_536].into_boxed_slice().as_mut_ptr() as u64;
         let mut new_process = Self {
           name,
-          pid: get_scheduler().request_pid(),
+          pid: SCHEDULER.try_write().unwrap().request_pid(),
           registers: context::Registers::default(),
         };
 
@@ -43,7 +43,7 @@ impl Process {
         // Set the stack
         new_process.registers.rsp = stack;
 
-        get_scheduler().add_process(new_process.clone());
+        SCHEDULER.try_write().unwrap().add_process(new_process.clone());
 
         new_process
     }
