@@ -86,7 +86,7 @@ pub mod serial; // Qemu serial logging
 use core::panic::PanicInfo;
 #[cfg(not(test))]
 use alloc::alloc::Layout;
-use alloc::prelude::v1::String;
+use alloc::prelude::v1::{String, Box};
 use spin::Mutex;
 use x86::bits64::registers::*;
 use linked_list_allocator::LockedHeap;
@@ -177,11 +177,16 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     unsafe {
         map(system as *const () as usize, system as *const () as usize + 15,
         EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
-        Process::new(String::from("system"), system as *const () as u64);
-        Process::new(String::from("terminal"), user::input::terminal as *const () as u64);
-
-        // last task + 1 = first task
-        // TASK_RUNNING = CURRENT_TASKS.last().unwrap().to_owned();
+        Process::new(
+            String::from("system"),
+            system as *const () as u64,
+            Box::new(&["Hello world with arguments!".as_bytes()])
+        );
+        Process::new(
+            String::from("terminal"),
+            user::input::terminal as *const () as u64,
+            Box::new(&[])
+        );
     }
 
     println!("DEBUG: Start elf loader");
@@ -221,7 +226,48 @@ fn enable_write_protect_bit() {
     unsafe { cr0_write(cr0() | Cr0::CR0_WRITE_PROTECT) };
 }
 
-fn system() {
+use core::sync::atomic::{AtomicUsize, Ordering};
+static PRINTED: AtomicUsize = AtomicUsize::new(0);
+
+/// Idle process
+fn system(argc: isize, argv: *const *const u8) {
     use processes::scheduler::switch;
+    // Example of how to use parameters:
+    if PRINTED.load(Ordering::SeqCst) == 0 {
+        let args = get_params(argc, argv);
+        debug!("{}\n", args[0]);
+        PRINTED.store(1, Ordering::SeqCst);
+    }
     switch();
+}
+
+use alloc::prelude::v1::Vec;
+fn get_params(argc: isize, argv: *const *const u8) -> Vec<String> {
+    let mut params = Vec::new();
+        for i in 0..argc {
+            unsafe {
+                params.push(
+                    core::slice::from_raw_parts(
+                        *argv.offset(i),
+                        strlen(*argv.offset(i))
+                    )
+                );
+            }
+        }
+
+    // Cast array to string
+    let mut strings = Vec::new();
+    for param in params {
+        strings.push(String::from_utf8(param.to_vec()).expect("cannot cast to utf8"));
+    }
+    strings
+}
+
+pub unsafe fn strlen(mut s: *const u8) -> usize {
+    let mut n = 0;
+    while *s != 0 {
+        n += 1;
+        s = s.offset(1);
+    }
+    return n
 }

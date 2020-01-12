@@ -74,8 +74,12 @@ pub fn load_elf(path: &'static str) {
                     }
                 }
             }
-            use alloc::prelude::v1::String;
-            Process::new(String::from("test"), entry); // TODO: Get the name of the program
+            use alloc::prelude::v1::{String, Box};
+            Process::new(
+                String::from("test"),
+                entry,
+                Box::new(&[path.as_bytes()])
+            ); // TODO: Get the name of the program
         },
         Err(e) => {
             println!("[ELF ERROR]: {:?}", e);

@@ -17,31 +17,45 @@
 pub mod scheduler;
 pub mod context;
 
-use alloc::prelude::v1::String;
+use alloc::prelude::v1::{String, Box};
 
 use self::scheduler::*;
+
+#[derive(Clone, Debug)]
+struct Arguments {
+    argc: isize,
+    argv: u64,
+}
 
 #[derive(Clone, Debug)]
 pub struct Process {
     name: String,
     pid: usize,
     registers: context::Registers,
+    args: Arguments,
 }
 
 impl Process {
-    pub fn new(name: String, entry: u64) -> Self {
+    pub fn new(name: String,
+               entry: u64,
+               argv: Box<&[&[u8]]>) -> Self {
         let stack = vec![0; 65_536].into_boxed_slice().as_mut_ptr() as u64;
+
         let mut new_process = Self {
           name,
           pid: SCHEDULER.try_write().unwrap().request_pid(),
           registers: context::Registers::default(),
+          args: Arguments {
+            argc: argv.len() as isize,
+            argv: argv.as_ptr() as u64,
+          },
         };
 
         // Set entry
         new_process.set_entry(entry);
 
         // Set the stack
-        new_process.registers.rsp = stack;
+        new_process.registers.rsp = stack as u64;
 
         SCHEDULER.try_write().unwrap().add_process(new_process.clone());
 
@@ -49,7 +63,10 @@ impl Process {
     }
 
     unsafe fn jmp(&self) {
-        usermode(self.registers.rip, self.registers.rsp, 0);
+        usermode(self.registers.rip,
+                 self.registers.rsp,
+                 self.args.argc as u64,
+                 self.args.argv);
     }
 
     fn set_entry(&mut self, entry: u64) {
@@ -61,21 +78,24 @@ impl Process {
 }
 
 #[naked]
-unsafe fn usermode(ip: u64, sp: u64, arg: u64) {
+unsafe fn usermode(ip: u64, sp: u64, arg1: u64, arg2: u64) {
     use crate::gdt;
-    asm!("push r10
+    // Create the stack frame
+    asm!("push r9
+          push r10
           push r11
           push r12
           push r13
           push r14
           push r15"
           : // No output
-          :   "{r10}"(gdt::GDT_USER_DATA << 3 | 3), // Data segment
-              "{r11}"(sp), // Stack pointer
-              "{r12}"(1 << 9), // Flags - Set interrupt enable flag
-              "{r13}"(gdt::GDT_USER_CODE << 3 | 3), // Code segment
-              "{r14}"(ip), // IP
-              "{r15}"(arg) // Argument
+          :   "{r9}"(gdt::GDT_USER_DATA << 3 | 3), // Data segment
+              "{r10}"(sp), // Stack pointer
+              "{r11}"(1 << 9), // Flags - Set interrupt enable flag
+              "{r12}"(gdt::GDT_USER_CODE << 3 | 3), // Code segment
+              "{r13}"(ip), // IP
+              "{r14}"(arg2), // Argument 2 (argv)
+              "{r15}"(arg1) // Argument 1 (argc)
           : // No clobbers
           : "intel", "volatile");
 
@@ -101,6 +121,7 @@ unsafe fn usermode(ip: u64, sp: u64, arg: u64) {
          xor r15, r15
          finit
          pop rdi
+         pop rsi
          iretq"
          : // No output because it never returns
          :   "{r14}"(gdt::GDT_USER_DATA << 3 | 3), // Data segment
