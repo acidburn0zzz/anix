@@ -16,6 +16,7 @@
  */
 pub mod scheduler;
 pub mod context;
+pub mod registers;
 
 use alloc::prelude::v1::{String, Box};
 
@@ -31,7 +32,7 @@ struct Arguments {
 pub struct Process {
     name: String,
     pid: usize,
-    registers: context::Registers,
+    ctx: context::Context,
     args: Arguments,
 }
 
@@ -41,21 +42,15 @@ impl Process {
                argv: Box<&[&[u8]]>) -> Self {
         let stack = vec![0; 65_536].into_boxed_slice().as_mut_ptr() as u64;
 
-        let mut new_process = Self {
+        let new_process = Self {
           name,
           pid: SCHEDULER.try_write().unwrap().request_pid(),
-          registers: context::Registers::default(),
+          ctx: context::Context::new(stack, entry),
           args: Arguments {
             argc: argv.len() as isize,
             argv: argv.as_ptr() as u64,
           },
         };
-
-        // Set entry
-        new_process.set_entry(entry);
-
-        // Set the stack
-        new_process.registers.rsp = stack as u64;
 
         SCHEDULER.try_write().unwrap().add_process(new_process.clone());
 
@@ -63,15 +58,12 @@ impl Process {
     }
 
     unsafe fn jmp(&self) {
-        usermode(self.registers.rip,
-                 self.registers.rsp,
+        usermode(self.ctx.get_rip(),
+                 self.ctx.get_rsp(),
                  self.args.argc as u64,
                  self.args.argv);
     }
 
-    fn set_entry(&mut self, entry: u64) {
-        self.registers.rip = entry;
-    }
     pub fn getpid(&self) -> usize {
         self.pid
     }

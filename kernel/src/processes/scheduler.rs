@@ -52,11 +52,12 @@ impl Scheduler {
     pub unsafe fn schedule(&mut self) {
         // TODO: Go into Kernel Mode here
         if !self.current_process.is_none() && self.current_process.unwrap() < self.processes.len() {
-            let current_registers = &mut self.processes[self.current_process.unwrap()].registers;
+            self.processes[self.current_process.unwrap()].ctx.save();
+            // let current_registers = &mut self.processes[self.current_process.unwrap()].registers;
             // Save all registers
             // current_registers.save_cr3();
 
-            asm!("pushfq ; pop $0" : "=r"(&current_registers.rflags)
+            /*asm!("pushfq ; pop $0" : "=r"(&current_registers.rflags)
                                    :
                                    : "memory"
                                    : "intel", "volatile");
@@ -94,7 +95,7 @@ impl Scheduler {
             asm!("mov $0, rbp"     : "=r"(&current_registers.rbp)
                                    :
                                    : "memory"
-                                   : "intel", "volatile");
+                                   : "intel", "volatile");*/
 
             if (self.current_process.unwrap() + 1) >= self.processes.len() {
                 // Return to the first process to prevent overflow
@@ -108,11 +109,12 @@ impl Scheduler {
             self.current_process = Some(0);
         }
 
-        let current_registers = &self.processes[self.current_process.unwrap()].registers;
+        self.processes[self.current_process.unwrap()].ctx.load();
+        // let current_registers = &self.processes[self.current_process.unwrap()].registers;
 
         // current_registers.restore_cr3();
 
-        asm!("push $0 ; popfq"     :
+        /*asm!("push $0 ; popfq"     :
                                    : "r"(current_registers.rflags)
                                    : "memory"
                                    : "intel", "volatile");
@@ -145,7 +147,7 @@ impl Scheduler {
         asm!("mov rbp, $0"         :
                                    : "r"(current_registers.rbp)
                                    : "memory"
-                                   : "intel", "volatile");
+                                   : "intel", "volatile");*/
 
         self.processes[self.current_process.unwrap()].jmp();
     }
