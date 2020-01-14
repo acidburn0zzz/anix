@@ -30,6 +30,7 @@ struct Arguments {
     argv: u64,
 }
 
+#[allow(dead_code)]
 pub struct Process {
     name: String,
     pid: usize,
