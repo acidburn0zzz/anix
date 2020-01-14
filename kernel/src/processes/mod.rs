@@ -19,8 +19,10 @@ pub mod context;
 pub mod registers;
 
 use alloc::prelude::v1::{String, Box};
+use linked_list_allocator::LockedHeap;
 
 use self::scheduler::*;
+use crate::memory::consts::USER_HEAP_OFFSET;
 
 #[derive(Clone, Debug)]
 struct Arguments {
@@ -28,33 +30,35 @@ struct Arguments {
     argv: u64,
 }
 
-#[derive(Clone, Debug)]
 pub struct Process {
     name: String,
     pid: usize,
     ctx: context::Context,
     args: Arguments,
+    pub heap: LockedHeap,
 }
 
 impl Process {
     pub fn new(name: String,
                entry: u64,
-               argv: Box<&[&[u8]]>) -> Self {
+               argv: Box<&[&[u8]]>) {
         let stack = vec![0; 65_536].into_boxed_slice().as_mut_ptr() as u64;
+        let pid = SCHEDULER.try_write().unwrap().request_pid();
 
         let new_process = Self {
           name,
-          pid: SCHEDULER.try_write().unwrap().request_pid(),
+          pid,
           ctx: context::Context::new(stack, entry),
           args: Arguments {
             argc: argv.len() as isize,
             argv: argv.as_ptr() as u64,
           },
+          heap: unsafe {LockedHeap::new(USER_HEAP_OFFSET.start, USER_HEAP_OFFSET.size)},
         };
 
-        SCHEDULER.try_write().unwrap().add_process(new_process.clone());
+        SCHEDULER.try_write().unwrap().add_process(new_process);
 
-        new_process
+        // TODO: Return new process?
     }
 
     unsafe fn jmp(&self) {

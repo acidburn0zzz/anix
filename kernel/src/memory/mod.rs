@@ -270,7 +270,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
                                        EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
-        let program2_start = Frame::containing_address(0xb000000);
+        let program2_start = Frame::containing_address(0x2000000);
         let program2_end = Frame::containing_address(0xb000010);
 
         for frame in Frame::range_inclusive(program2_start, program2_end) {
@@ -283,6 +283,25 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
         let program3_end = Frame::containing_address(0x10000);
 
         for frame in Frame::range_inclusive(program3_start, program3_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
+
+        let program4_start = Frame::containing_address(0x40022400);
+        let program4_end = Frame::containing_address(0x40022800);
+
+        for frame in Frame::range_inclusive(program4_start, program4_end) {
+            mapper.identity_map(frame, EntryFlags::PRESENT |
+                                       EntryFlags::WRITABLE |
+                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        }
+
+        use super::consts::USER_HEAP_OFFSET;
+        let user_heap_start = Frame::containing_address(USER_HEAP_OFFSET.start);
+        let user_heap_end = Frame::containing_address(USER_HEAP_OFFSET.end);
+
+        for frame in Frame::range_inclusive(user_heap_start, user_heap_end) {
             mapper.identity_map(frame, EntryFlags::PRESENT |
                                        EntryFlags::WRITABLE |
                                        EntryFlags::USER_ACCESSIBLE, allocator);

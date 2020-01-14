@@ -53,50 +53,6 @@ impl Scheduler {
         // TODO: Go into Kernel Mode here
         if !self.current_process.is_none() && self.current_process.unwrap() < self.processes.len() {
             self.processes[self.current_process.unwrap()].ctx.save();
-            // let current_registers = &mut self.processes[self.current_process.unwrap()].registers;
-            // Save all registers
-            // current_registers.save_cr3();
-
-            /*asm!("pushfq ; pop $0" : "=r"(&current_registers.rflags)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, rbx"     : "=r"(&current_registers.rbx)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, r12"     : "=r"(&current_registers.r12)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, r13"     : "=r"(&current_registers.r13)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, r14"     : "=r"(&current_registers.r14)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, r15"     : "=r"(&current_registers.r15)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, rsp"     : "=r"(&current_registers.rsp)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");
-
-            asm!("mov $0, rbp"     : "=r"(&current_registers.rbp)
-                                   :
-                                   : "memory"
-                                   : "intel", "volatile");*/
-
             if (self.current_process.unwrap() + 1) >= self.processes.len() {
                 // Return to the first process to prevent overflow
                 self.current_process = Some(0);
@@ -110,49 +66,16 @@ impl Scheduler {
         }
 
         self.processes[self.current_process.unwrap()].ctx.load();
-        // let current_registers = &self.processes[self.current_process.unwrap()].registers;
-
-        // current_registers.restore_cr3();
-
-        /*asm!("push $0 ; popfq"     :
-                                   : "r"(current_registers.rflags)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov rbx, $0"         :
-                                   : "r"(current_registers.rbx)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov r12, $0"         :
-                                   : "r"(current_registers.r12)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov r13, $0"         :
-                                   : "r"(current_registers.r13)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov r14, $0"         :
-                                   : "r"(current_registers.r14)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov r15, $0"         :
-                                   : "r"(current_registers.r15)
-                                   : "memory"
-                                   : "intel", "volatile");
-
-        asm!("mov rbp, $0"         :
-                                   : "r"(current_registers.rbp)
-                                   : "memory"
-                                   : "intel", "volatile");*/
-
         self.processes[self.current_process.unwrap()].jmp();
     }
     pub fn get_all_processes(&self) -> &Vec<Process> {
         &self.processes
+    }
+    pub fn get_current_process(&self) -> &Process {
+        &self.processes[self.current_process.unwrap()]
+    }
+    pub fn get_current_process_mut(&mut self) -> &mut Process {
+        &mut self.processes[self.current_process.unwrap()]
     }
     pub fn request_pid(&mut self) -> usize {
         self.processes.len()

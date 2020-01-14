@@ -23,7 +23,7 @@ use crate::processes::Process;
 use crate::memory::consts::USER_OFFSET;
 
 pub fn init() {
-    // This Loader can load any static linked binary which doesn't use SSE registers
+    // This Loader can load any static linked binary
     load_elf("/bin/rust-test");
 }
 
@@ -75,6 +75,7 @@ pub fn load_elf(path: &'static str) {
                 }
             }
             use alloc::prelude::v1::{String, Box};
+            println!("Program {} loaded. Entrypoint at {:#x}", path, entry);
             Process::new(
                 String::from("test"),
                 entry,

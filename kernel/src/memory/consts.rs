@@ -38,6 +38,8 @@
 //! 0x40000000 ----> |-----------------------------------|
 //!                  |           Kernel TCB              |
 //! 0xb000000 -----> |-----------------------------------|
+//!                  |              User Heap            |
+//! 0x8000000 -----> |-----------------------------------|
 //!                  |               FREE                |
 //! 0x500000 ------> |-----------------------------------|
 //!                  |         Frame allocator           |
@@ -95,8 +97,8 @@ pub const USER_TCB_OFFSET: MemoryOffset = MemoryOffset {
 
 pub const USER_HEAP_OFFSET: MemoryOffset = MemoryOffset {
     start: 0x8_000_000,
-    end: 0x8_001_000,
-    size: 0x8_001_000 - 0x8_000_000,
+    end: 0xb_000_000,
+    size: 0xb_000_000 - 0x8_000_000,
 };
 
 pub const HARDWARE2_OFFSET: MemoryOffset = MemoryOffset {
@@ -104,7 +106,3 @@ pub const HARDWARE2_OFFSET: MemoryOffset = MemoryOffset {
     end: 0xfe_bf1_fff,
     size: 0xfe_bf1_fff - 0xfd_000_000,
 };
-
-pub const ALL_OFFSETS: [MemoryOffset; 8] = [GDT_IDT_OFFSET, HARDWARE_LOWMEM_OFFSET, KERNEL_OFFSET,
-                                            KERNEL_HEAP_OFFSET, USER_OFFSET, USER_HEAP_OFFSET,
-                                            HARDWARE2_OFFSET, USER_TCB_OFFSET];
