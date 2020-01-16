@@ -61,9 +61,9 @@ pub unsafe fn syscall3(mut a: usize, b: usize, c: usize, d: usize) -> Result<usi
 }
 
 // Functions
-pub fn exit() -> usize {
+pub fn exit(code: usize) -> usize {
     unsafe {
-        syscall0(SYS_EXIT).expect("cannot exit")
+        syscall1(SYS_EXIT, code).expect("cannot exit")
     }
 }
 

@@ -42,9 +42,9 @@ lazy_static! {
 pub fn terminal() {
     use crate::syscall::call::exit;
     use crate::debug;
-    debug!("The terminal doesn't work yet. \
+    /*debug!("The terminal doesn't work yet. \
             But, I can get the time: {} and I can convert it to a timestamp: {} ;)\n",
-            date(), date().to_timestamp());
+            date(), date().to_timestamp());*/
     /*use ::debug;
     for e in &mut *EVENTS.lock() {
         if e.is_used_by("terminal") == false {
@@ -76,7 +76,7 @@ pub fn terminal() {
             e.mark_as_used(TASK_RUNNING.unwrap());
         }
     }*/
-    exit();
+    exit(0);
 }
 
 /// Function for detect command and exec it
