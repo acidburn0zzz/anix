@@ -14,10 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
-use alloc::prelude::v1::{Vec, ToString, ToOwned};
+use alloc::prelude::v1::{Vec, String, ToString, ToOwned};
 
 use super::INODE_ROOT;
-use crate::fs::PARTITIONS;
+use crate::fs::partition_manager::PARTITION_MANAGER;
 use super::{Ext2Info, gd::GDTable, inode::Inode};
 use crate::errors::{Error, ENOENT};
 
@@ -47,10 +47,14 @@ pub struct File {
 }
 
 impl File {
-    pub fn open(path: &'static str, flags: usize) -> Self {
-        // TODO: Mode parameters to change the file permissions on open
-        let part = &PARTITIONS.lock()[0];
-        let superblock = part.superblock.unwrap();
+    pub fn open(path: String, flags: usize) -> Self {
+        // TODO: Add a parameter `mode` to change the file permissions on open
+        unsafe {
+            PARTITION_MANAGER.force_unlock();
+        }
+        let manager = PARTITION_MANAGER.lock();
+        let part = manager.get_current_partition();
+        let superblock = part.get_fs().get_superblock();
         let block_size = 1024 << superblock.data.s_log_block_size;
         let gdt = GDTable::new(part.lba_start * 512 + block_size as u64, block_size);
         let info = Ext2Info {

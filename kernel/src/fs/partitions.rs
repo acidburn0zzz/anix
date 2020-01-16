@@ -16,28 +16,25 @@
  */
 
 use core::ptr::copy_nonoverlapping;
+use alloc::prelude::v1::{Box, String};
 
-use super::ext2::superblock::Superblock;
 use crate::read_num_bytes;
+use super::vfs::Filesystem;
 
-pub struct Partition {
-    pub bootable: bool,
-    pub system_id: u8,
-    pub lba_start: u64,
-    pub lba_count: u64,
-    pub superblock: Option<Superblock>
+pub struct DummyFilesystem {}
+impl Filesystem for DummyFilesystem {
+    fn get_name(&self) -> String {
+        String::from("dummy")
+    }
 }
 
-impl Default for Partition {
-    fn default() -> Partition {
-        Partition {
-            bootable: false,
-            system_id: 0,
-            lba_start: 0,
-            lba_count: 0,
-            superblock: None,
-        }
-    }
+pub struct Partition {
+    pub disk: usize,    // On which disk this partition is
+    pub bootable: bool, // Is this partition bootable
+    pub system_id: u8,  // The ID of the partition
+    pub lba_start: u64, // The start of the partition (in sectors)
+    pub lba_count: u64, // The size of the partition
+    fs: Box<dyn Filesystem>,
 }
 
 #[derive(Debug)]
@@ -77,7 +74,7 @@ impl From<u8> for PartType {
 
 
 impl Partition {
-    pub fn new(data: &[u8]) -> Option<Partition> {
+    pub fn new(disk: usize, data: &[u8]) -> Option<Partition> {
         assert!(data.len() >= 16);
 
         if data[4] == 0 {
@@ -100,12 +97,19 @@ impl Partition {
         };
 
         Some(Partition {
+            disk,
             bootable: (data[0] & 0x80) != 0,
             system_id: data[4],
             lba_start: base,
             lba_count: len,
-            superblock: None,
+            fs: Box::new(DummyFilesystem {}),
         })
+    }
+    pub fn set_fs(&mut self, fs: Box<dyn Filesystem>) {
+        self.fs = fs;
+    }
+    pub fn get_fs(&self) -> &Box<dyn Filesystem>{
+        &self.fs
     }
     pub fn part_type(&self) -> PartType{
         PartType::from(self.system_id)

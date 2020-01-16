@@ -25,7 +25,8 @@ impl Syscall {
         use core::str::from_utf8;
 
         unsafe {
-            print!("{}", from_utf8(from_raw_parts(string_addr as *const u8, len)).expect("cannot transform to utf8"));
+            print!("{}", from_utf8(from_raw_parts(string_addr as *const u8, len))
+                .expect("cannot transform to utf8"));
         }
         0
     }

@@ -15,16 +15,15 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use core::fmt::*;
 use crate::disk::sata::read_disk;
 
 #[repr(packed,C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Superblock
 {
     pub data: SuperblockData,
     pub ext: SuperblockDataExt,
-    pub _s_reserved: [u32; 98],
+    pub _s_reserved: Array98<u32>,
     pub s_checksum: u32,
 }
 
@@ -69,7 +68,7 @@ pub struct SuperblockData
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct SuperblockDataExt
 {
     // The following fields are only valid if s_rev_level > 0
@@ -90,7 +89,7 @@ pub struct SuperblockDataExt
     /// Volume label
     pub s_volume_name: [u8; 16],
     /// Last mounted directory
-    pub s_last_mounted: [u8; 64],
+    pub s_last_mounted: Array64<u8>,
 
     // FEAT_COMPAT_DIR_PREALLOC
     pub s_prealloc_blocks: u8,
@@ -153,7 +152,7 @@ pub struct SuperblockDataExt
     pub s_last_error_block: u64,
     pub s_last_error_func: [u8; 32],
 
-    pub s_mount_opts: [u8; 64],
+    pub s_mount_opts: Array64<u8>,
     pub s_usr_quota_inum: u32,
     pub s_grp_quota_inum: u32,
     pub s_overhead_blocks: u32,
@@ -177,5 +176,28 @@ impl Superblock {
             .as_slice()
             as *const _ as *const Self)
         }
+    }
+}
+
+use core::fmt::{Debug, Result, Formatter};
+#[derive(Clone, Copy)]
+pub struct Array98<T> {
+    data: [T; 98]
+}
+
+impl<T: Debug> Debug for Array98<T> {
+    fn fmt(&self, formatter: &mut Formatter) -> Result {
+        self.data[..].fmt(formatter)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Array64<T> {
+    data: [T; 64]
+}
+
+impl<T: Debug> Debug for Array64<T> {
+    fn fmt(&self, formatter: &mut Formatter) -> Result {
+        self.data[..].fmt(formatter)
     }
 }

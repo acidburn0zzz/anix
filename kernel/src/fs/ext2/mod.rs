@@ -14,8 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+use alloc::prelude::v1::String;
+use alloc::collections::BTreeMap;
+use alloc::string::FromUtf8Error;
+
+use crate::fs::vfs::{Filesystem, FileDesc};
 use self::gd::*;
-use crate::fs::ext2::superblock::Superblock;
+use self::file::File;
+use self::superblock::Superblock;
+use crate::errors::{Result/*, Error*/};
 
 pub mod superblock;
 pub mod gd;
@@ -23,6 +30,96 @@ pub mod inode;
 pub mod file;
 
 pub const INODE_ROOT: u32 = 2;
+
+pub struct Ext2Filesystem {
+    tmp_files: BTreeMap<usize, File>, // Files used when the process system is not started (use it also instead of the field fds in the Process struct?)
+    next_id: usize,
+    sb: Superblock,
+}
+
+impl Ext2Filesystem {
+    pub fn new(sb: Superblock) -> Self {
+        Self {
+            tmp_files: BTreeMap::new(),
+            next_id: 3,
+            sb,
+        }
+    }
+}
+
+impl Filesystem for Ext2Filesystem {
+    fn get_name(&self) -> String {
+        String::from("ext2")
+    }
+    fn open(&mut self, path: String, flags: usize) -> FileDesc {
+        use crate::processes::scheduler::SCHEDULER;
+
+        unsafe {
+            SCHEDULER.force_write_unlock();
+        }
+
+        if let Err(_e) = SCHEDULER.try_write().unwrap().get_current_process() {
+            // The process system is not started yet
+            self.tmp_files.insert(self.next_id, File::open(path, flags));
+            self.next_id += 1;
+            FileDesc {
+                num: self.next_id - 1,
+            }
+        }
+        else {
+            unsafe {
+                SCHEDULER.force_write_unlock();
+            }
+            let id = SCHEDULER.try_write().unwrap().get_current_process()
+                .expect("the process system is not started").next_file_id();
+            let file = File::open(path, flags);
+            unsafe {
+                SCHEDULER.force_write_unlock();
+            }
+            SCHEDULER.try_write().unwrap().get_current_process()
+                .expect("the process system is not started").add_new_file(file);
+
+            FileDesc {
+                num: id,
+            }
+        }
+    }
+    fn read(&self, fd: usize, count: usize) -> Result<&[u8]> {
+        use core::ptr::copy_nonoverlapping;
+
+        use crate::processes::scheduler::SCHEDULER;
+
+        if let Err(_e) = SCHEDULER.try_write().unwrap().get_current_process() {
+            // The process system is not started yet
+            Ok(self.tmp_files.get(&fd).unwrap().read())
+        }
+        else {
+            let mut buf = &[];
+            unsafe {
+                SCHEDULER.force_write_unlock();
+                SCHEDULER.try_write().unwrap().get_current_process()
+                .expect("the process system is not started").fds.force_unlock();
+                SCHEDULER.force_write_unlock();
+            }
+            let src = SCHEDULER.try_write().unwrap().get_current_process()
+                .expect("the process system is not started").fds.try_lock().unwrap()[fd].content_ptr;
+            unsafe {
+                copy_nonoverlapping(src as *const u8,
+                    &mut buf as *mut _ as *mut u8,
+                    count);
+            }
+            Ok(buf)
+        }
+    }
+    fn read_to_string(&self, fd: usize, count: usize) -> core::result::Result<String, FromUtf8Error> {
+        let buf = self.read(fd, count);
+        let string = String::from_utf8(buf.expect("cannot read file").to_vec())?;
+        Ok(string)
+    }
+    fn get_superblock(&self) -> Superblock {
+        self.sb
+    }
+}
 
 pub enum InodeMode {
     Ext2SIfmt   = 0xF000, /* format mask  */
@@ -64,7 +161,7 @@ pub struct Ext2Info<'a> {
 pub fn init() {
     use self::file::*;
     use core::str::from_utf8;
-    let f = File::open("/home/user/hello.txt", O_RDONLY);
+    let f = File::open(String::from("/home/user/hello.txt"), O_RDONLY);
     let c = f.read();
     println!("Content of file /home/user/hello.txt:\n{}", from_utf8(c).expect("cannot transform file /home/user/hello.txt to utf-8"));
 

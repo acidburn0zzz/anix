@@ -16,6 +16,7 @@
  */
 
 #![no_std]
+#![feature(try_trait)]
 #![feature(global_asm)]
 #![feature(box_syntax)]
 #![feature(thread_local)]
@@ -168,7 +169,6 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
 
     // TODO: Use the multiboot crate to determinate the disk which will be read and write
     println!("DEBUG: Test Ext2 filesystem");
-    fs::init();
     fs::ext2::init();
 
     println!("DEBUG: Start tasking system");
@@ -232,10 +232,21 @@ static PRINTED: AtomicUsize = AtomicUsize::new(0);
 /// Idle process
 fn system(argc: isize, argv: *const *const u8) {
     use processes::scheduler::switch;
+    use crate::fs::ext2::file::*;
+    use core::str::from_utf8;
+
     // Example of how to use parameters:
     if PRINTED.load(Ordering::SeqCst) == 0 {
-        let args = get_params(argc, argv);
-        debug!("{}\n", args[0]);
+        // let args = get_params(argc, argv);
+        // debug!("{}\n", args[0]);
+
+        // let opened_file = open(String::from("/home/user/hello5.txt"), O_CLOEXEC | O_RDONLY);
+        // debug!("FD Num: {}", opened_file);
+
+        // let buf = Vec::with_capacity(14);
+        // read(opened_file, &buf);
+        // debug!("Result: {}", from_utf8(buf.as_slice()).expect("cannot transform to utf8"));
+
         PRINTED.store(1, Ordering::SeqCst);
     }
     switch();

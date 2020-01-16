@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+use alloc::prelude::v1::{String, Vec};
 
 use crate::errors::{Error, Result};
 use super::number::*;
@@ -49,6 +50,16 @@ pub unsafe fn syscall2(mut a: usize, b: usize, c: usize) -> Result<usize> {
     Error::demux(a)
 }
 
+pub unsafe fn syscall3(mut a: usize, b: usize, c: usize, d: usize) -> Result<usize> {
+    asm!("syscall"
+        : "={rax}"(a)
+        : "{rax}"(a), "{rdi}"(b), "{rsi}"(c), "{rdx}"(d)
+        : "rcx", "r11", "memory"
+        : "intel", "volatile");
+
+    Error::demux(a)
+}
+
 // Functions
 pub fn exit() -> usize {
     unsafe {
@@ -60,9 +71,24 @@ use crate::time::DateTime;
 pub fn date() -> DateTime {
     unsafe {
         let reference: &[DateTime] = &[DateTime::default()];
-        syscall2(SYS_TIME, reference.as_ptr() as usize, reference.as_ref().len())
+        syscall2(SYS_TIME, reference.as_ptr() as usize, reference.len())
         .expect("cannot read timestamp");
         reference[0]
+    }
+}
+
+pub fn open(path: String, flags: usize) -> usize {
+    unsafe {
+        let reference: &String = &path;
+        syscall3(SYS_OPEN, reference.as_ptr() as usize, reference.len(), flags)
+        .expect("cannot open the file")
+    }
+}
+pub fn read(fd: usize, buf: &Vec<u8>) {
+    unsafe {
+        let reference: &Vec<u8> = &buf;
+        syscall3(SYS_READ, fd, reference.as_ptr() as usize, reference.len())
+        .expect("cannot open the file");
     }
 }
 

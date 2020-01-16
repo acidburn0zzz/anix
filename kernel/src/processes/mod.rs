@@ -18,11 +18,14 @@ pub mod scheduler;
 pub mod context;
 pub mod registers;
 
-use alloc::prelude::v1::{String, Box};
+use alloc::prelude::v1::{String, Box, Vec};
+use alloc::sync::Arc;
+use spin::Mutex;
 use linked_list_allocator::LockedHeap;
 
 use self::scheduler::*;
 use crate::memory::consts::USER_HEAP_OFFSET;
+use crate::fs::ext2::file::File;
 
 #[derive(Clone, Debug)]
 struct Arguments {
@@ -37,6 +40,7 @@ pub struct Process {
     ctx: context::Context,
     args: Arguments,
     pub heap: LockedHeap,
+    pub fds: Arc<Mutex<Vec<File>>>, // TODO: Use Btreemap
 }
 
 impl Process {
@@ -55,11 +59,28 @@ impl Process {
             argv: argv.as_ptr() as u64,
           },
           heap: unsafe {LockedHeap::new(USER_HEAP_OFFSET.start, USER_HEAP_OFFSET.size)},
+          fds: Arc::new(Mutex::new(Vec::new())),
         };
 
         SCHEDULER.try_write().unwrap().add_process(new_process);
 
         // TODO: Return new process?
+    }
+
+    pub fn next_file_id(&self) -> usize {
+        // Start with three because there was STDOUT, STDIN and STDERR at (0, 1, 2)
+        unsafe {
+            self.fds.force_unlock();
+        }
+        self.fds.try_lock().unwrap().len() + 3
+    }
+
+    pub fn add_new_file(&self, file: File) {
+        unsafe {
+            SCHEDULER.force_write_unlock();
+            SCHEDULER.try_write().unwrap().get_current_process()
+                .expect("the process system is not started").fds.try_lock().unwrap().push(file);
+        }
     }
 
     unsafe fn jmp(&self) {

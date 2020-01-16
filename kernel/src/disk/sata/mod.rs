@@ -16,7 +16,6 @@
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
 
-use spin::Mutex;
 use alloc::prelude::v1::{Box, Vec};
 
 use self::{disk_ata::DiskATA, disk_atapi::DiskATAPI};
@@ -25,18 +24,16 @@ use crate::drivers::{DriverInstance, Driver};
 use crate::pci::BusDevice;
 use crate::errors::{Result, EIO, Error};
 use crate::io::io::Io;
+use crate::fs::partition_manager::PARTITION_MANAGER;
 
 pub mod disk_ata;
 pub mod disk_atapi;
 pub mod fis;
 pub mod hba;
 
-/// A global Disk instance for read and write everywhere
-pub static mut DISKS: Mutex<Vec<Box<dyn Disk>>> = Mutex::new(Vec::new());
-
 pub static S_PCI_DRIVER: PciDriver = PciDriver;
 
-pub trait Disk{
+pub trait Disk {
     fn id(&self) -> usize;
     fn size(&mut self) -> u64;
     fn read(&mut self, block: u64, buffer: &mut [u8]) -> Result<Option<usize>>;
@@ -73,8 +70,8 @@ impl Driver for PciDriver
     {
         // let irq = bus_dev.get_irq(0);
         let base = bus_dev.base_slice(5);
-
-        Box::new(SATAController::new(base))
+        let controller = SATAController::new(base);
+        Box::new(controller)
     }
 }
 
@@ -89,22 +86,49 @@ impl SATAController{
                 base as usize + 0x200,
                 EntryFlags::PRESENT | EntryFlags::WRITABLE);
         }
-        let mut all_disks = disks(base as usize, "disk");
 
-        for disk in 0..all_disks.1.len() {
-            if all_disks.1[disk].block_length().expect("Could not read block_length") != 0 && all_disks.1[disk].size() != 0 {
+        let all_disks = disks(base as usize, "disk");
+        Self::register_disks(all_disks.1);
+        Self::register_partitions();
+
+        Self {}
+    }
+
+    pub fn register_disks(disks: Vec<Box<dyn Disk>>) {
+        println!("Register disks");
+        for mut disk in disks {
+            if disk.block_length().expect("Could not read block_length") != 0 && disk.size() != 0 {
+                println!("   - Register disk-{}", disk.id());
                 unsafe {
-                    *DISKS.lock() = Vec::from(all_disks.1);
+                    PARTITION_MANAGER.force_unlock();
                 }
-                break;
+                PARTITION_MANAGER.try_lock().unwrap().add_disk(disk);
             }
         }
+    }
 
-        Self{}
+    pub fn register_partitions() {
+        use crate::fs::mbr::Mbr;
+
+        println!("Register partitions");
+        unsafe {
+            PARTITION_MANAGER.force_unlock();
+        }
+        for (id, _disk) in PARTITION_MANAGER.try_lock().unwrap().get_all_disks().iter().enumerate() {
+            let parts = Mbr::new().get_partitions(id);
+            for part in parts {
+                println!("   - Register part which starts at {} in disk-{}", part.lba_start, id);
+                unsafe {
+                    PARTITION_MANAGER.force_unlock();
+                }
+                PARTITION_MANAGER.try_lock().unwrap().add_partition(part);
+            }
+        }
     }
 }
 
-impl crate::drivers::DriverInstance for SATAController{}
+unsafe impl Send for SATAController {}
+impl crate::drivers::DriverInstance for SATAController {}
 
 pub fn disks(base: usize, name: &str) -> (&'static mut HbaMem, Vec<Box<dyn Disk>>) {
     let hba_mem = unsafe { &mut *(base as *mut HbaMem) };
@@ -159,19 +183,21 @@ pub fn read_disk(start: u64, end: u64) -> Result<Vec<u8>>{
     buffer.resize(size + size % 512, 0);
 
     unsafe {
-        let result = DISKS.lock()[0].read(start / 512,
-                                         &mut buffer.as_mut_slice());
+        PARTITION_MANAGER.force_unlock();
+    }
+    let mut manager = PARTITION_MANAGER.try_lock().unwrap();
+    let result = manager.get_current_disk_mut().read(start / 512,
+                                     &mut buffer.as_mut_slice());
 
-        match result {
-            Ok(_s) => {
-                return Ok(buffer[
-                    (start as usize % 512)..
-                    (end as usize - start as usize) + start as usize % 512
-                ].to_vec());
-            },
-            Err(_e) => {
-                return Err(Error::new(EIO));
-            },
-        }
+    match result {
+        Ok(_s) => {
+            return Ok(buffer[
+                (start as usize % 512)..
+                (end as usize - start as usize) + start as usize % 512
+            ].to_vec());
+        },
+        Err(_e) => {
+            return Err(Error::new(EIO));
+        },
     }
 }

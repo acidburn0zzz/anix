@@ -42,7 +42,8 @@ impl Syscall {
         unsafe {
             SCHEDULER.force_write_unlock();
         }
-        let value = SCHEDULER.try_read().unwrap().get_current_process().getpid();
+        let value = SCHEDULER.try_read().unwrap().get_current_process()
+            .expect("he process system is not started").getpid();
         println!("set_tid_addr({:#x}) = {}", tidptr, value);
         value as usize
     }

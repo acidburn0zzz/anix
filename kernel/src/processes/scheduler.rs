@@ -71,8 +71,9 @@ impl Scheduler {
     pub fn get_all_processes(&self) -> &Vec<Process> {
         &self.processes
     }
-    pub fn get_current_process(&self) -> &Process {
-        &self.processes[self.current_process.unwrap()]
+    pub fn get_current_process(&self) -> Result<&Process, core::option::NoneError> {
+        let current = self.current_process?;
+        Ok(&self.processes[current])
     }
     pub fn get_current_process_mut(&mut self) -> &mut Process {
         &mut self.processes[self.current_process.unwrap()]
