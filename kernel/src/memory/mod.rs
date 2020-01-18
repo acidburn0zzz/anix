@@ -23,117 +23,78 @@ pub mod table;
 pub mod heap;
 pub mod consts;
 
-use self::paging::{EntryFlags, Page, InactivePageTable, PhysicalAddress};
+use multiboot2::{MemoryAreaIter, MemoryArea, ElfSectionsTag};
+use x86_64::PhysAddr;
+use x86_64::structures::paging::{
+    UnusedPhysFrame,
+    FrameAllocator,
+    page::Size4KiB,
+    frame::PhysFrame,
+};
+
+use self::paging::{EntryFlags, Page, InactivePageTable};
 use self::paging::temporary_page::TemporaryPage;
 use self::table::ActivePageTable;
-use multiboot2::{MemoryAreaIter, MemoryArea, ElfSectionsTag};
 use crate::{AREA_FRAME_ALLOCATOR, ACTIVE_TABLE};
 use crate::errors::Result;
 
 pub const PAGE_SIZE: usize = 4096;
 
-pub struct FrameIter {
-    start: Frame,
-    end: Frame,
-}
-
-impl Iterator for FrameIter {
-    type Item = Frame;
-
-    fn next(&mut self) -> Option<Frame> {
-        if self.start <= self.end {
-            let frame = self.start.clone();
-            self.start.number += 1;
-            Some(frame)
-        } else {
-            None
-            }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct Frame {
-    number: usize,
-}
-
-impl Frame {
-    pub fn containing_address(address: usize) -> Frame {
-        Frame{ number: address / PAGE_SIZE }
-    }
-    fn start_address(&self) -> PhysicalAddress {
-        self.number * PAGE_SIZE
-    }
-    fn clone(&self) -> Frame {
-        Frame { number: self.number }
-    }
-    pub fn range_inclusive(start: Frame, end: Frame) -> FrameIter {
-        FrameIter {
-            start: start,
-            end: end,
-        }
-    }
-}
-
-pub trait FrameAllocator {
-    fn allocate_frame(&mut self) -> Option<Frame>;
-    fn deallocate_frame(&mut self, frame: Frame);
-}
-
 #[derive(Copy, Clone)]
 pub struct AreaFrameAllocator {
-    next_free_frame: Frame,
+    next_free_frame: PhysFrame,
     current_area: Option<&'static MemoryArea>,
     areas: MemoryAreaIter,
-    kernel_start: Frame,
-    kernel_end: Frame,
-    multiboot_start: Frame,
-    multiboot_end: Frame,
+    kernel_start: PhysFrame,
+    kernel_end: PhysFrame,
+    multiboot_start: PhysFrame,
+    multiboot_end: PhysFrame,
 }
 
 impl AreaFrameAllocator {
     fn choose_next_area(&mut self) {
         self.current_area = self.areas.clone().filter(|area| {
             let address = area.start_address() + area.size() - 1;
-            Frame::containing_address(address as usize) >= self.next_free_frame
+            PhysFrame::containing_address(PhysAddr::new(address)) >= self.next_free_frame
         }).min_by_key(|area| area.start_address());
 
         if let Some(area) = self.current_area {
-            let start_frame = Frame::containing_address(area.start_address() as usize);
+            let start_frame = PhysFrame::containing_address(PhysAddr::new(area.start_address()));
             if self.next_free_frame < start_frame {
                 self.next_free_frame = start_frame;
             }
         }
     }
 
-    pub fn new<'a>(kernel_start: usize, kernel_end: usize,
-        multiboot_start: usize, multiboot_end: usize,
+    pub fn new<'a>(kernel_start: u64, kernel_end: u64,
+        multiboot_start: u64, multiboot_end: u64,
         memory_areas: MemoryAreaIter) -> AreaFrameAllocator
     {
         let mut allocator = AreaFrameAllocator {
-            next_free_frame: Frame::containing_address(0),
+            next_free_frame: PhysFrame::containing_address(PhysAddr::new(0)),
             current_area: None,
             areas: memory_areas,
-            kernel_start: Frame::containing_address(kernel_start),
-            kernel_end: Frame::containing_address(kernel_end),
-            multiboot_start: Frame::containing_address(multiboot_start),
-            multiboot_end: Frame::containing_address(multiboot_end),
+            kernel_start: PhysFrame::containing_address(PhysAddr::new(kernel_start)),
+            kernel_end: PhysFrame::containing_address(PhysAddr::new(kernel_end)),
+            multiboot_start: PhysFrame::containing_address(PhysAddr::new(multiboot_start)),
+            multiboot_end: PhysFrame::containing_address(PhysAddr::new(multiboot_end)),
         };
         allocator.choose_next_area();
         allocator
     }
 }
 
-impl FrameAllocator for AreaFrameAllocator {
-    fn allocate_frame(&mut self) -> Option<Frame> {
+unsafe impl FrameAllocator<Size4KiB> for AreaFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
         if let Some(area) = self.current_area {
-            // "Clone" the frame to return it if it's free. Frame doesn't
+            // "Clone" the frame to return it if it's free. PhysFrame doesn't
             // implement Clone, but we can construct an identical frame.
-            let frame = Frame { number: self.next_free_frame.number };
+            let frame = self.next_free_frame;
 
             // the last frame of the current area
             let current_area_last_frame = {
                 let address = area.start_address() + area.size() - 1;
-                Frame::containing_address(address as usize)
+                PhysFrame::containing_address(PhysAddr::new(address))
             };
 
             if frame > current_area_last_frame {
@@ -141,18 +102,20 @@ impl FrameAllocator for AreaFrameAllocator {
                 self.choose_next_area();
             } else if frame >= self.kernel_start && frame <= self.kernel_end {
                 //  `frame` is used by the kernel
-                self.next_free_frame = Frame {
-                    number: self.kernel_end.number + 1
-                };
+                self.next_free_frame = PhysFrame::from_start_address(
+                    PhysAddr::new(self.kernel_end.start_address().as_u64() + 4096)
+                ).unwrap();
             } else if frame >= self.multiboot_start && frame <= self.multiboot_end {
                 // `frame` is used by the multiboot information structure
-                self.next_free_frame = Frame {
-                    number: self.multiboot_end.number + 1
-                };
+                self.next_free_frame = PhysFrame::from_start_address(
+                    PhysAddr::new(self.multiboot_end.start_address().as_u64() + 4096)
+                ).unwrap();
             } else {
                 // frame is unused, increment `next_free_frame` and return it
-                self.next_free_frame.number += 1;
-                return Some(frame);
+                self.next_free_frame = PhysFrame::from_start_address(
+                    PhysAddr::new(self.next_free_frame.start_address().as_u64() + 4096)
+                ).unwrap();
+                return unsafe { Some(UnusedPhysFrame::new(frame)) };
             }
             // `frame` was not valid, try it again with the updated `next_free_frame`
             self.allocate_frame()
@@ -160,13 +123,9 @@ impl FrameAllocator for AreaFrameAllocator {
             None // no free frames left
         }
     }
-
-    fn deallocate_frame(&mut self, _frame: Frame) {
-        unimplemented!()
-    }
 }
 
-pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
+pub unsafe fn init(start: u64, end: u64, elf_sections_tag: ElfSectionsTag,
                     memory_areas: MemoryAreaIter) {
     assert_has_not_been_called!("memory::init must be called only once");
 
@@ -179,12 +138,12 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
     println!("\nMultiboot start: {:#x}, Multiboot end: {:#x}", start, end);
 
     let mut area_frame_allocator = AreaFrameAllocator::new(
-        kernel_start as usize, kernel_end as usize,
+        kernel_start, kernel_end,
         start, end,
         memory_areas
     );
 
-    let mut active_table = remap_the_kernel(&mut area_frame_allocator, start, end, elf_sections_tag);
+    let mut active_table = create_mapping(&mut area_frame_allocator, start, end, elf_sections_tag);
 
     use self::consts::KERNEL_HEAP_OFFSET;
     let kernel_heap_start_page = Page::containing_address(KERNEL_HEAP_OFFSET.start);
@@ -200,9 +159,9 @@ pub unsafe fn init(start: usize, end: usize, elf_sections_tag: ElfSectionsTag,
     *AREA_FRAME_ALLOCATOR.lock() = Some(area_frame_allocator);
 }
 
-pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
-                        end: usize, elf_sections_tag: ElfSectionsTag)
-                        -> ActivePageTable where A: FrameAllocator {
+pub fn create_mapping<A>(allocator: &mut A, start: u64,
+                        end: u64, elf_sections_tag: ElfSectionsTag)
+                        -> ActivePageTable where A: FrameAllocator<Size4KiB> {
     let mut temporary_page = TemporaryPage::new(Page { number: 0xcafebabe },
         allocator);
 
@@ -212,7 +171,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
         InactivePageTable::new(frame, &mut active_table, &mut temporary_page)
     };
 
-    active_table.with(&mut new_table, &mut temporary_page, |mapper| {
+    active_table.with(&mut new_table, /*&mut temporary_page,*/ |mapper| {
         // Map allocated kernel sections
         for section in elf_sections_tag.sections() {
 
@@ -230,81 +189,87 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
 
             let flags = EntryFlags::from_elf_section_flags(&section);
 
-            let start_frame = Frame::containing_address(section.start_address() as usize);
-            let end_frame = Frame::containing_address(section.end_address() as usize - 1);
-            for frame in Frame::range_inclusive(start_frame, end_frame) {
-                mapper.identity_map(frame, flags | EntryFlags::USER_ACCESSIBLE, allocator);
+            let start_frame = PhysFrame::containing_address(PhysAddr::new(section.start_address()));
+            let end_frame = PhysFrame::containing_address(PhysAddr::new(section.end_address()- 1));
+            for frame in PhysFrame::range_inclusive(start_frame, end_frame) {
+                mapper.identity_map(frame,
+                                    flags | EntryFlags::USER_ACCESSIBLE,
+                                    allocator);
             }
         }
 
         // Map multiboot structure
-        let multiboot_start = Frame::containing_address(start);
-        let multiboot_end = Frame::containing_address(end - 1);
-        for frame in Frame::range_inclusive(multiboot_start, multiboot_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT, allocator);
+        let multiboot_start = PhysFrame::containing_address(PhysAddr::new(start));
+        let multiboot_end = PhysFrame::containing_address(PhysAddr::new(end - 1));
+        for frame in PhysFrame::range_inclusive(multiboot_start, multiboot_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT,
+                                allocator);
         }
 
-        let ahci_frames_start = Frame::containing_address(0x550000);
-        let ahci_frames_end = Frame::containing_address(0x6000000);
+        let ahci_frames_start = PhysFrame::containing_address(PhysAddr::new(0x550000));
+        let ahci_frames_end = PhysFrame::containing_address(PhysAddr::new(0x6000000));
 
-        for frame in Frame::range_inclusive(ahci_frames_start, ahci_frames_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE, allocator);
+        for frame in PhysFrame::range_inclusive(ahci_frames_start, ahci_frames_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE,
+                                allocator);
         }
 
-        let ahci_frames_start2 = Frame::containing_address(0x110000);
-        let ahci_frames_end2 = Frame::containing_address(0x200000);
+        let ahci_frames_start2 = PhysFrame::containing_address(PhysAddr::new(0x110000));
+        let ahci_frames_end2 = PhysFrame::containing_address(PhysAddr::new(0x200000));
 
-        for frame in Frame::range_inclusive(ahci_frames_start2, ahci_frames_end2) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(ahci_frames_start2, ahci_frames_end2) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
-        let program_start = Frame::containing_address(0x2000);
-        let program_end = Frame::containing_address(0x3000);
+        let program_start = PhysFrame::containing_address(PhysAddr::new(0x2000));
+        let program_end = PhysFrame::containing_address(PhysAddr::new(0x3000));
 
-        for frame in Frame::range_inclusive(program_start, program_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(program_start, program_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE,
+                                allocator);
         }
 
-        let program2_start = Frame::containing_address(0x2000000);
-        let program2_end = Frame::containing_address(0xb000010);
+        let program2_start = PhysFrame::containing_address(PhysAddr::new(0x2000000));
+        let program2_end = PhysFrame::containing_address(PhysAddr::new(0xb000010));
 
-        for frame in Frame::range_inclusive(program2_start, program2_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(program2_start, program2_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
-        let program3_start = Frame::containing_address(0x3c);
-        let program3_end = Frame::containing_address(0x10000);
+        let program3_start = PhysFrame::containing_address(PhysAddr::new(0x3c));
+        let program3_end = PhysFrame::containing_address(PhysAddr::new(0x10000));
 
-        for frame in Frame::range_inclusive(program3_start, program3_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(program3_start, program3_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
-        let program4_start = Frame::containing_address(0x40022400);
-        let program4_end = Frame::containing_address(0x40022800);
+        let program4_start = PhysFrame::containing_address(PhysAddr::new(0x40022400));
+        let program4_end = PhysFrame::containing_address(PhysAddr::new(0x40022800));
 
-        for frame in Frame::range_inclusive(program4_start, program4_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(program4_start, program4_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE, allocator);
         }
 
         use super::consts::USER_HEAP_OFFSET;
-        let user_heap_start = Frame::containing_address(USER_HEAP_OFFSET.start);
-        let user_heap_end = Frame::containing_address(USER_HEAP_OFFSET.end);
+        let user_heap_start = PhysFrame::containing_address(PhysAddr::new(USER_HEAP_OFFSET.start as u64));
+        let user_heap_end = PhysFrame::containing_address(PhysAddr::new(USER_HEAP_OFFSET.end as u64));
 
-        for frame in Frame::range_inclusive(user_heap_start, user_heap_end) {
-            mapper.identity_map(frame, EntryFlags::PRESENT |
-                                       EntryFlags::WRITABLE |
-                                       EntryFlags::USER_ACCESSIBLE, allocator);
+        for frame in PhysFrame::range_inclusive(user_heap_start, user_heap_end) {
+            mapper.identity_map(frame,
+                                EntryFlags::PRESENT | EntryFlags::WRITABLE |
+                                EntryFlags::USER_ACCESSIBLE, allocator);
         }
      });
 
@@ -312,7 +277,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
 
     // turn the old p4 page into a guard page
     let old_p4_page = Page::containing_address(
-        old_table.p4_frame.start_address()
+        old_table.p4_frame.start_address().as_u64() as usize
     );
     active_table.unmap(old_p4_page, allocator);
 
@@ -320,7 +285,7 @@ pub fn remap_the_kernel<A>(allocator: &mut A, start: usize,
 }
 
 /// Allocate a frame
-pub fn allocate_frames() -> Option<Frame> {
+pub fn allocate_frames() -> Option<UnusedPhysFrame> {
     unsafe{
         if let Some(ref mut allocator) = *AREA_FRAME_ALLOCATOR.lock() {
             return allocator.allocate_frame();
@@ -331,15 +296,19 @@ pub fn allocate_frames() -> Option<Frame> {
 }
 
 pub fn physalloc() -> Result<usize>{
-    Ok(allocate_frames().unwrap().start_address() as usize)
+    Ok(allocate_frames().unwrap().start_address().as_u64() as usize)
 }
 
-pub unsafe fn map(start_address: usize, end_address: usize, flags: EntryFlags) {
-    let start = Frame::containing_address(start_address);
-    let end = Frame::containing_address(end_address);
+pub unsafe fn map(start_address: u64, end_address: u64, flags: EntryFlags) {
+    use x86_64::instructions::tlb;
+    let start = PhysFrame::containing_address(PhysAddr::new(start_address));
+    let end = PhysFrame::containing_address(PhysAddr::new(end_address));
 
-    for page in Frame::range_inclusive(start, end) {
-        ACTIVE_TABLE.lock().unwrap().identity_map(page,
+    // TODO: Remove EntryFlags use PageTableFlags
+    // TODO: Use lazy_static for ACTIVE_TABLE and AREA_FRAME_ALLOCATOR
+    tlb::flush_all();
+    for frame in PhysFrame::range_inclusive(start, end) {
+        ACTIVE_TABLE.lock().unwrap().identity_map(frame,
                             flags,
                             &mut AREA_FRAME_ALLOCATOR
                             .lock().unwrap());

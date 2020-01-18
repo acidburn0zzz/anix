@@ -57,8 +57,8 @@ pub fn load_elf(path: String) {
                         ()
                     }
                     unsafe {
-                        map(start as usize,
-                            end as usize,
+                        map(start,
+                            end,
                             EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
                         copy_nonoverlapping((content.as_ptr() as u64 + ph.p_offset) as *const u8,
                                             start as *mut u8,

@@ -147,8 +147,8 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
         let boot_info = multiboot2::load(multiboot_information_address);
 
         memory::init(
-            boot_info.start_address(),
-            boot_info.end_address(),
+            boot_info.start_address() as u64,
+            boot_info.end_address() as u64,
             boot_info.elf_sections_tag().expect("cannot get elf sections tag"),
             boot_info.memory_map_tag().expect("Memory map tag required").memory_areas()
         );
@@ -175,7 +175,7 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
 
     // Map usermode tasks
     unsafe {
-        map(system as *const () as usize, system as *const () as usize + 15,
+        map(system as *const () as u64, system as *const () as u64 + 15,
         EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
         Process::new(
             String::from("system"),
@@ -230,10 +230,10 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 static PRINTED: AtomicUsize = AtomicUsize::new(0);
 
 /// Idle process
-fn system(argc: isize, argv: *const *const u8) {
+fn system(_argc: isize, _argv: *const *const u8) {
     use processes::scheduler::switch;
-    use crate::fs::ext2::file::*;
-    use core::str::from_utf8;
+    // use crate::fs::ext2::file::*;
+    // use core::str::from_utf8;
 
     // Example of how to use parameters:
     if PRINTED.load(Ordering::SeqCst) == 0 {
@@ -253,7 +253,7 @@ fn system(argc: isize, argv: *const *const u8) {
 }
 
 use alloc::prelude::v1::Vec;
-fn get_params(argc: isize, argv: *const *const u8) -> Vec<String> {
+fn _get_params(argc: isize, argv: *const *const u8) -> Vec<String> {
     let mut params = Vec::new();
         for i in 0..argc {
             unsafe {

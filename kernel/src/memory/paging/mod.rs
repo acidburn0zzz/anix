@@ -18,9 +18,13 @@
 
 use bitflags::bitflags;
 use multiboot2::{ElfSection, ElfSectionFlags};
+use x86_64::PhysAddr;
+use x86_64::structures::paging::{
+    UnusedPhysFrame,
+    frame::PhysFrame,
+};
 
 use super::PAGE_SIZE;
-use super::Frame;
 use self::temporary_page::TemporaryPage;
 use crate::memory::table::ActivePageTable;
 
@@ -68,7 +72,7 @@ impl EntryFlags {
 }
 
 pub struct InactivePageTable {
-    pub p4_frame: Frame,
+    pub p4_frame: UnusedPhysFrame,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -91,23 +95,23 @@ impl Entry {
         EntryFlags::from_bits_truncate(self.0)
     }
 
-    pub fn pointed_frame(&self) -> Option<Frame> {
+    pub fn pointed_frame(&self) -> Option<PhysFrame> {
         if self.flags().contains(EntryFlags::PRESENT) {
-            Some(Frame::containing_address(
-                self.0 as usize & 0x000fffff_fffff000
+            Some(PhysFrame::containing_address(
+                PhysAddr::new(self.0 & 0x000fffff_fffff000)
             ))
         } else {
             None
         }
     }
 
-    pub fn set(&mut self, frame: Frame, flags: EntryFlags) {
-        //assert!(frame.start_address() & !0x000fffff_fffff000 == 0);
-        self.0 = (frame.start_address() as u64) | flags.bits();
+    pub fn set(&mut self, frame: PhysFrame, flags: EntryFlags) {
+        // assert!(frame.start_address() & !0x000fffff_fffff000 == 0);
+        self.0 = (frame.start_address().as_u64()) | flags.bits();
     }
 }
 
-impl Page{
+impl Page {
     pub fn containing_address(address: VirtualAddress) -> Self {
         assert!(address < 0x0000_8000_0000_0000 || address >= 0xffff_8000_0000_0000, "invalid address: 0x{:x}", address);
         Self { number: address / PAGE_SIZE }
@@ -157,7 +161,7 @@ impl Iterator for PageIter {
 }
 
 impl InactivePageTable {
-    pub fn new(frame: Frame,
+    pub fn new(frame: UnusedPhysFrame,
                active_table: &mut ActivePageTable,
                temporary_page: &mut TemporaryPage)
                -> InactivePageTable {
@@ -167,7 +171,8 @@ impl InactivePageTable {
             // now we are able to zero the table
             table.zero();
             // set up recursive mapping for the table
-            table[511].set(frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE);
+            table[511].set(frame.clone(),
+                           EntryFlags::PRESENT | EntryFlags::WRITABLE);
         }
         temporary_page.unmap(active_table);
 

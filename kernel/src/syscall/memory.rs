@@ -77,8 +77,8 @@ impl Syscall {
                 let addr =
                     SCHEDULER.try_write().unwrap().get_current_process_mut().heap.try_lock().unwrap().bottom() - 4096;
                 map(
-                    addr - 4096,
-                    addr,
+                    addr as u64 - 4096,
+                    addr as u64,
                     EntryFlags::from(prot)
                 );
                 // Fill memory area with zeros

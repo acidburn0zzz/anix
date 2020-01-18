@@ -18,11 +18,18 @@
 use core::ops::{Index, IndexMut};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
+use x86_64::PhysAddr;
+use x86_64::structures::paging::{
+    FrameAllocator,
+    PhysFrame,
+    UnusedPhysFrame,
+    page::Size4KiB,
+};
 
-use crate::memory::paging::*;
-use crate::memory::FrameAllocator;
-use crate::memory::Frame;
-use crate::memory::paging::mapper::Mapper;
+use crate::memory::{
+    paging::*,
+    paging::mapper::Mapper,
+ };
 
 pub struct Table<L: TableLevel> {
     entries: [Entry; ENTRY_COUNT],
@@ -33,7 +40,7 @@ pub const P4: *mut Table<Level4> = 0xffffffff_fffff000 as *mut Table<Level4>;
 
 #[derive(Copy, Clone)]
 pub struct ActivePageTable {
-    mapper: Mapper,
+    pub mapper: Mapper,
 }
 
 impl Deref for ActivePageTable {
@@ -59,12 +66,13 @@ impl ActivePageTable {
 
     pub fn with<F>(&mut self,
                    table: &mut InactivePageTable,
-                   _temporary_page: &mut temporary_page::TemporaryPage,
+                   // _temporary_page: &mut temporary_page::TemporaryPage,
                    f: F) where F: FnOnce(&mut Mapper) {
         use x86_64::instructions::tlb;
 
         // overwrite recursive mapping
-        self.p4_mut()[511].set(table.p4_frame.clone(), EntryFlags::PRESENT | EntryFlags::WRITABLE);
+        self.p4_mut()[511].set(table.p4_frame.clone(),
+                               EntryFlags::PRESENT | EntryFlags::WRITABLE);
         tlb::flush_all();
 
         // execute f in the new context
@@ -78,12 +86,12 @@ impl ActivePageTable {
         use x86::controlregs;
 
         let old_table = InactivePageTable {
-            p4_frame: Frame::containing_address(
-                unsafe{controlregs::cr3() as usize}
-            ),
+            p4_frame: unsafe { UnusedPhysFrame::new(PhysFrame::containing_address(
+                PhysAddr::new(controlregs::cr3())
+            )) },
         };
         unsafe {
-            controlregs::cr3_write(new_table.p4_frame.start_address() as u64);
+            controlregs::cr3_write(new_table.p4_frame.start_address().as_u64());
         }
         old_table
     }
@@ -97,7 +105,7 @@ impl<L> Table<L> where L: TableLevel{
         }
     }
 }
-impl<L> Table<L> where L: HierarchicalLevel{
+impl<L> Table<L> where L: HierarchicalLevel {
     pub fn next_table_address(&self, index: usize) -> Option<usize>{
         let entry_flags = self[index].flags();
         if entry_flags.contains(EntryFlags::PRESENT) && !entry_flags.contains(EntryFlags::HUGE_PAGE) {
@@ -118,11 +126,12 @@ impl<L> Table<L> where L: HierarchicalLevel{
             .map(|address| unsafe { &mut *(address as *mut _) })
     }
 
-    pub fn next_table_create<A>(&mut self, index: usize, allocator: &mut A) -> &mut Table<L::NextLevel> where A: FrameAllocator{
+    pub fn next_table_create<A>(&mut self, index: usize, allocator: &mut A) -> &mut Table<L::NextLevel>
+        where A: FrameAllocator<Size4KiB> {
         if self.next_table(index).is_none() {
             assert!(!self.entries[index].flags().contains(EntryFlags::HUGE_PAGE), "mapping code does not support huge pages");
             let frame = allocator.allocate_frame().expect("no frames available");
-            self.entries[index].set(frame, EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
+            self.entries[index].set(frame.frame(), EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);
             // println!("{:#?}", index);
             if index != 489 && index != 501 { // Fix a strange error
                 self.next_table_mut(index).unwrap().zero();

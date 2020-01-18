@@ -82,8 +82,8 @@ impl SATAController{
         use crate::memory::{map, paging::EntryFlags};
         println!("\nDisks:");
         unsafe {
-            map(base as usize,
-                base as usize + 0x200,
+            map(base as u64,
+                base as u64 + 0x200,
                 EntryFlags::PRESENT | EntryFlags::WRITABLE);
         }
 

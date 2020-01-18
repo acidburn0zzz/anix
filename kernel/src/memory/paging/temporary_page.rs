@@ -15,26 +15,31 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see https://www.gnu.org/licenses.
  */
+use x86_64::structures::paging::{
+    FrameAllocator,
+    PhysFrame,
+    UnusedPhysFrame,
+    page::Size4KiB,
+};
 
 use super::Page;
 use super::VirtualAddress;
-use crate::memory::FrameAllocator;
-use crate::memory::table::{Table, Level1};
-use crate::memory::table::{ActivePageTable};
-use crate::memory::Frame;
-use crate::memory::paging::EntryFlags;
+use crate::memory::{
+    paging::EntryFlags,
+    table::{Table, Level1, ActivePageTable},
+};
 
-#[derive(Copy, Clone)]
-struct TinyAllocator([Option<Frame>; 3]);
+#[derive(Clone)]
+struct TinyAllocator([Option<PhysFrame>; 3]);
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct TemporaryPage {
     page: Page,
     allocator: TinyAllocator,
 }
 
 impl TemporaryPage {
-    pub fn new<A>(page: Page, allocator: &mut A) -> TemporaryPage where A: FrameAllocator {
+    pub fn new<A>(page: Page, allocator: &mut A) -> TemporaryPage where A: FrameAllocator<Size4KiB> {
         TemporaryPage {
             page: page,
             allocator: TinyAllocator::new(allocator),
@@ -43,7 +48,7 @@ impl TemporaryPage {
 
     /// Maps the temporary page to the given frame in the active table.
     /// Returns the start address of the temporary page.
-    pub fn map(&mut self, frame: Frame, active_table: &mut ActivePageTable)
+    pub fn map(&mut self, frame: PhysFrame, active_table: &mut ActivePageTable)
         -> VirtualAddress
     {
         assert!(active_table.translate_page(self.page).is_none(), "temporary page is already mapped");
@@ -56,38 +61,31 @@ impl TemporaryPage {
         active_table.unmap(self.page, &mut self.allocator)
     }
 
-    pub fn map_table_frame(&mut self, frame: Frame, active_table: &mut ActivePageTable) -> &mut Table<Level1> {
+    pub fn map_table_frame(&mut self, frame: PhysFrame, active_table: &mut ActivePageTable)
+        -> &mut Table<Level1> {
         unsafe { &mut *(self.map(frame, active_table) as *mut Table<Level1>) }
     }
 }
 
-impl FrameAllocator for TinyAllocator {
-    fn allocate_frame(&mut self) -> Option<Frame> {
+unsafe impl FrameAllocator<Size4KiB> for TinyAllocator {
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
         for frame_option in &mut self.0 {
             if frame_option.is_some() {
-                return frame_option.take();
+                return unsafe { Some(UnusedPhysFrame::new(frame_option.take().unwrap())) };
             }
         }
         None
-    }
-
-    fn deallocate_frame(&mut self, frame: Frame) {
-        for frame_option in &mut self.0 {
-            if frame_option.is_none() {
-                *frame_option = Some(frame);
-                return;
-            }
-        }
-        panic!("Tiny allocator can hold only 3 frames.");
     }
 }
 
 impl TinyAllocator {
     fn new<A>(allocator: &mut A) -> TinyAllocator
-        where A: FrameAllocator
+        where A: FrameAllocator<Size4KiB>
     {
         let mut f = || allocator.allocate_frame();
-        let frames = [f(), f(), f()];
+        let frames = [Some(f().unwrap().frame()),
+                      Some(f().unwrap().frame()),
+                      Some(f().unwrap().frame())];
         TinyAllocator(frames)
     }
 }

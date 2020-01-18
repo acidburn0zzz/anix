@@ -34,9 +34,9 @@ pub fn init() {
     println!("Vbe driver is starting...");
     unsafe {
         let addr = *VESA_BUFFER.lock();
-        map(addr as usize,
-            addr as usize +
-            FB_WIDTH as usize * FB_HEIGHT as usize * FB_DEPTH as usize,
+        map(addr as u64,
+            addr as u64 +
+            FB_WIDTH as u64 * FB_HEIGHT as u64 * FB_DEPTH as u64,
             EntryFlags::PRESENT | EntryFlags::WRITABLE);
     }
     // Wallpaper
