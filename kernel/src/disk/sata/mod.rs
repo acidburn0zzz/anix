@@ -79,8 +79,10 @@ struct SATAController{}
 
 impl SATAController{
     pub fn new<'a>(base: u32) -> Self {
+        #[cfg(not(test))]
         use crate::memory::{map, paging::EntryFlags};
-        println!("\nDisks:");
+        println!("\nDisks (base: {:#x}):", base);
+        #[cfg(not(test))]
         unsafe {
             map(base as u64,
                 base as u64 + 0x200,

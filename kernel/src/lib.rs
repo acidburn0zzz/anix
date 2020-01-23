@@ -16,6 +16,7 @@
  */
 
 #![no_std]
+#![no_main]
 #![feature(try_trait)]
 #![feature(global_asm)]
 #![feature(box_syntax)]
@@ -28,9 +29,13 @@
 #![feature(alloc_error_handler)]
 #![feature(associated_type_bounds)]
 #![feature(naked_functions)]
+#![feature(custom_test_frameworks)]
 
 #![allow(exceeding_bitshifts)]
 #![allow(non_snake_case)]
+
+#![test_runner(crate::tests::test_runner)] // Use a custom runner for tests
+#![reexport_test_harness_main = "test_main"] // Use a custom name for the test main function
 
 // Imports
 
@@ -60,8 +65,8 @@ extern crate once;
 pub mod screen; // Utilities for screen (print, ...)
 pub mod gdt; // GDT
 pub mod idt; // IDT (Interrupts Descriptor Table)
-pub mod time; // Time management (TODO)
-pub mod fs; // Filesystem (TODO)
+pub mod time; // Time management
+pub mod fs; // Filesystem
 pub mod commands; // Commands for input (for add a command, see the header of commands.rs)
 pub mod user; // User functionnalities (TODO)
 pub mod common; // Common functions
@@ -69,7 +74,7 @@ pub mod irq; // Interrupts management
 pub mod memory; // Memory management
 pub mod processes; // Processes management
 pub mod errors; // Errors
-pub mod pci; // Pci management (TODO)
+pub mod pci; // Pci management
 pub mod disk; // Disk read and write (support ide (not tested) and sata)
 pub mod drivers; // Drivers management
 pub mod graphics; // Display things on screen
@@ -79,8 +84,10 @@ pub mod syscall; // Syscalls management
 pub mod device; // Devices management
 pub mod elf; // Elf files loader
 pub mod sse; // Enable SSE
+#[cfg(test)]
+pub mod tests;
 
-#[cfg(feature="x86_64-qemu-Anix")] // Use this function only in Qemu
+#[cfg(any(feature="x86_64-qemu-Anix", test))] // Use this function only in Qemu
 pub mod serial; // Qemu serial logging
 
 #[cfg(not(test))]
@@ -96,10 +103,9 @@ use idt::PICS;
 use memory::{
     *,
     table::ActivePageTable,
-    paging::{
-        EntryFlags,
-    }
 };
+#[cfg(not(test))]
+use memory::paging::EntryFlags;
 use common::hlt_loop;
 use processes::Process;
 
@@ -167,6 +173,9 @@ pub extern "C" fn rust_main(multiboot_information_address: usize) {
     println!("DEBUG: Start PCI driver");
     pci::init();
 
+    println!("INFO: List of PCI devices:");
+    pci::list_devices();
+
     // TODO: Use the multiboot crate to determinate the disk which will be read and write
     println!("DEBUG: Test Ext2 filesystem");
     fs::ext2::init();
@@ -210,6 +219,7 @@ fn handle_alloc_error(layout: Layout) -> ! {
     hlt_loop();
 }
 
+#[cfg(not(test))]
 fn enable_nxe_bit() {
     use x86::msr::{IA32_EFER, rdmsr, wrmsr};
 
@@ -220,6 +230,7 @@ fn enable_nxe_bit() {
     }
 }
 
+#[cfg(not(test))]
 fn enable_write_protect_bit() {
     use x86::controlregs::{cr0, cr0_write, Cr0};
 

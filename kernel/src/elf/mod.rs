@@ -19,6 +19,7 @@ use core::ptr::copy_nonoverlapping;
 use goblin::elf::*;
 
 use crate::fs::ext2::file::*;
+#[cfg(not(test))]
 use crate::memory::{map, paging::EntryFlags};
 use crate::processes::Process;
 use crate::memory::consts::USER_OFFSET;
@@ -57,6 +58,7 @@ pub fn load_elf(path: String) {
                         ()
                     }
                     unsafe {
+                        #[cfg(not(test))]
                         map(start,
                             end,
                             EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE);

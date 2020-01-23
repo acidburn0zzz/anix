@@ -348,7 +348,6 @@ fn scan_bus(bus_id: u8) -> Vec<Box<dyn BusDevice+'static>>
 
 pub fn list_devices() {
     use core::ops::Deref;
-    print!("\n");
 
     for device in &s_root_busses.lock().deref()[0].devices {
         println!("{} {}", device.bus_dev.addr(), get_device_type(device.bus_dev.get_attr("class").unwrap_u32()));

@@ -63,6 +63,9 @@ endif
 
 all: msg clear compile link test-errors mount copy umount set-bootable
 
+test:
+	@cd kernel && cargo xtest && cd ..
+
 user:
 	@echo "${LIGHTPURPLE}Compile and copy userspace programs${NORMAL}" | tr -d "'"
 	@cd userspace ; sh mk.sh
@@ -78,7 +81,7 @@ compile:
 	@sh mk/build.sh $(ARCH)
 	@echo "${LIGHTPURPLE}Compile rust code${NORMAL}" | tr -d "'"
 	@cd kernel && RUST_TARGET_PATH=$(shell pwd) xargo rustc --target $(ARCH) --features $(ARCH) && cd ..
-	@cp kernel/target/$(ARCH)/debug/libAnix.a kernel/src/output
+	@cp kernel/target/$(ARCH)/debug/libanix.a kernel/src/output
 	@echo "${GREEN}Success!${NORMAL}" | tr -d "'"
 
 link:
@@ -129,8 +132,8 @@ clear:
 
 clean: clear
 	# Clear Rust compiled files
-	@cargo clean
-	@xargo clean
+	@cd kernel && cargo clean && cd ..
+	@cd kernel && xargo clean && cd ..
 
 doc:
 	@cargo doc

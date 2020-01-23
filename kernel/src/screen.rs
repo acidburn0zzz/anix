@@ -171,9 +171,9 @@ impl Writer {
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         // Redirect text buffer to standard output because we are not in text mode
-        #[cfg(feature="x86_64-qemu-Anix")]
+        #[cfg(any(feature="x86_64-qemu-Anix", test))]
         use crate::serial_print;
-        #[cfg(feature="x86_64-qemu-Anix")]
+        #[cfg(any(feature="x86_64-qemu-Anix", test))]
         serial_print!("{}", s);
         // self.write_string(s);
         Ok(())

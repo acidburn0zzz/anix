@@ -163,7 +163,8 @@ pub fn init() {
     use core::str::from_utf8;
     let f = File::open(String::from("/home/user/hello.txt"), O_RDONLY);
     let c = f.read();
-    println!("Content of file /home/user/hello.txt:\n{}", from_utf8(c).expect("cannot transform file /home/user/hello.txt to utf-8"));
+    println!("Content of file /home/user/hello.txt:\n{}", from_utf8(c)
+        .expect("cannot transform file /home/user/hello.txt to utf-8"));
 
     // let f = File::open("/usr/share/system/logo.bmp", "rb");
     // let c = f.read_binary();
