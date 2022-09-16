@@ -27,7 +27,7 @@ features = ["unicode"]
 
 [dependencies.linked_list_allocator]
 features = ["use_spin"]
-version = "0.6.4"
+version = "0.10.2"
 
 [dependencies.goblin]
 default-features = false
